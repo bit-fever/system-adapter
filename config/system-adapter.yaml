@@ -1,0 +1,5 @@
+general:
+  logFile: config/system-adapter.log
+  bindAddress: :8449
+authentication:
+  authority: https://bitfever-server:8443/auth/realms/bitfever
