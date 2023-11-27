@@ -1,5 +1,6 @@
-general:
-  logFile: config/system-adapter.log
+application:
   bindAddress: :8449
+  production: false
+  debug: false
 authentication:
   authority: https://bitfever-server:8443/auth/realms/bitfever

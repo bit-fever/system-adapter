@@ -26,46 +26,58 @@ package service
 
 import (
 	"github.com/bit-fever/core/auth"
-	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/business"
-	"github.com/gin-gonic/gin"
 )
 
 //=============================================================================
 
-func getSystems(c *gin.Context, us *auth.UserSession) {
-	list := business.GetSystems()
-	_ = req.ReturnList(c, list, 0, 1000, len(*list))
+func getAdapters(c *auth.Context) {
+	list := business.GetAdapters()
+	_ = c.ReturnList(list, 0, 1000, len(*list))
 }
 
 //=============================================================================
 
-func connect(c *gin.Context, us *auth.UserSession) {
-	params := business.ConnectionParams{}
-	err    := req.BindParamsFromBody(c, &params)
+func getConnections(c *auth.Context) {
+	var filter map[string]any
+	offset, limit, err := c.GetPagingParams()
 
 	if err == nil {
-		rep, err := business.Connect(us, &params)
+		list := business.GetConnections(c, filter, offset, limit)
+		_ = c.ReturnList(list, 0, 1000, len(*list))
+	}
+
+	c.ReturnError(err)
+}
+
+//=============================================================================
+
+func connect(c *auth.Context) {
+	params := business.ConnectionParams{}
+	err    := c.BindParamsFromBody(&params)
+
+	if err == nil {
+		rep, err := business.Connect(c, &params)
 		if err == nil {
-			_ = req.ReturnObject(c, rep)
+			_ = c.ReturnObject(rep)
 			return
 		}
 	}
 
-	req.ReturnError(c, err)
+	c.ReturnError(err)
 }
 
 //=============================================================================
 
-func disconnect(c *gin.Context, us *auth.UserSession) {
-	code := c.Param("id")
-	rep, err := business.Disconnect(us, code)
+func disconnect(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+	err  := business.Disconnect(c, code)
 
 	if err == nil {
-		_ = req.ReturnObject(c, rep)
-	} else {
-		req.ReturnError(c, err)
+		return
 	}
+
+	c.ReturnError(err)
 }
 
 //=============================================================================

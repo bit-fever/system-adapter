@@ -35,7 +35,6 @@ type ConnectionParams struct {
 
 type ConnectionResponse struct {
 	Code  string `json:"code"`
-	Error string `json:"error,omitempty"`
 }
 
 //=============================================================================

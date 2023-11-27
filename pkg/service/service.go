@@ -28,24 +28,21 @@ import (
 	"github.com/bit-fever/core/auth"
 	"github.com/bit-fever/core/auth/roles"
 	"github.com/bit-fever/core/req"
-	"github.com/bit-fever/system-adapter/pkg/model/config"
+	"github.com/bit-fever/system-adapter/pkg/app"
 	"github.com/gin-gonic/gin"
-	"log"
+	"log/slog"
 )
 
 //=============================================================================
 
-func Init(router *gin.Engine, cfg *config.Config) {
+func Init(router *gin.Engine, cfg *app.Config, logger *slog.Logger) {
 
-	ctrl, err := auth.NewOidcController(cfg.Authentication.Authority, req.GetClient("bf"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	ctrl := auth.NewOidcController(cfg.Authentication.Authority, req.GetClient("bf"), logger, cfg)
 
-	router.GET   ("/api/system/v1/systems",         ctrl.Secure(getSystems,     roles.Admin_User))
-//	router.GET   ("/api/system/v1/connections",     ctrl.Secure(getConnections, roles.Admin_User))
-	router.POST  ("/api/system/v1/connections",     ctrl.Secure(connect,        roles.Admin_User))
-	router.DELETE("/api/system/v1/connections/:id", ctrl.Secure(disconnect,     roles.Admin_User))
+	router.GET   ("/api/system/v1/adapters",          ctrl.Secure(getAdapters,    roles.Admin_User))
+	router.GET   ("/api/system/v1/connections",       ctrl.Secure(getConnections, roles.Admin_User))
+	router.POST  ("/api/system/v1/connections",       ctrl.Secure(connect,        roles.Admin_User))
+	router.DELETE("/api/system/v1/connections/:code", ctrl.Secure(disconnect,     roles.Admin_User))
 }
 
 //=============================================================================

@@ -27,41 +27,32 @@ package main
 import (
 	"github.com/bit-fever/core/boot"
 	"github.com/bit-fever/core/req"
-	"github.com/bit-fever/system-adapter/pkg/model/config"
+	"github.com/bit-fever/system-adapter/pkg/app"
 	"github.com/bit-fever/system-adapter/pkg/service"
-	"github.com/gin-gonic/gin"
-	"log"
+	"log/slog"
 )
 
 //=============================================================================
 
-func main() {
-	cfg := &config.Config{}
-	boot.ReadConfig("system-adapter", cfg)
-	file := boot.InitLogs(cfg.General.LogFile)
-	defer file.Close()
+const component = "system-adapter"
 
+//=============================================================================
+
+func main() {
+	cfg := &app.Config{}
+	boot.ReadConfig(component, cfg)
+	logger := boot.InitLogger(component, &cfg.Application)
+	engine := boot.InitEngine(logger,    &cfg.Application)
 	initClients()
-	router := registerServices(cfg)
-	boot.RunHttpServer(router, cfg.General.BindAddress)
+	service.Init(engine, cfg, logger)
+	boot.RunHttpServer(engine, &cfg.Application)
 }
 
 //=============================================================================
 
 func initClients() {
-	log.Println("Initializing clients...")
+	slog.Info("Initializing clients...")
 	req.AddClient("bf", "ca.crt", "server.crt", "server.key")
-}
-
-//=============================================================================
-
-func registerServices(cfg *config.Config) *gin.Engine {
-
-	log.Println("Registering services...")
-	router := gin.Default()
-	service.Init(router, cfg)
-
-	return router
 }
 
 //=============================================================================

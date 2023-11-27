@@ -22,19 +22,15 @@ THE SOFTWARE.
 */
 //=============================================================================
 
-package config
+package app
+
+import "github.com/bit-fever/core"
 
 //=============================================================================
 
 type Config struct {
-	General struct {
-		LogFile     string
-		BindAddress string
-	}
-
-	Authentication struct {
-		Authority    string
-	}
+	core.Application
+	core.Authentication
 }
 
 //=============================================================================

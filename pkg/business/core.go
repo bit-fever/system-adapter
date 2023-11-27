@@ -26,7 +26,6 @@ package business
 
 import (
 	"github.com/bit-fever/core/auth"
-	"github.com/bit-fever/core/auth/roles"
 	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"github.com/bit-fever/system-adapter/pkg/adapter/interactive"
@@ -51,59 +50,89 @@ var connections = struct {
 //===
 //=============================================================================
 
-func GetSystems() *[]*adapter.AdapterInfo {
+func GetAdapters() *[]*adapter.AdapterInfo {
 	return &infos
 }
 
 //=============================================================================
 
-func Connect(us *auth.UserSession, params *ConnectionParams) (*ConnectionResponse, error) {
+func GetConnections(c *auth.Context, filter map[string]any, offset int, limit int) *[]*adapter.ConnectionInfo {
+	connections.Lock()
+	defer connections.Unlock()
+
+	us := c.Session
+
+	var list []*adapter.ConnectionInfo
+
+	for _, cc := range connections.m {
+		if us.IsAdmin() || us.Username == cc.Username {
+			ci := adapter.ConnectionInfo{
+				Code: cc.Code,
+				Username: cc.Username,
+				SystemCode: cc.Adapter.GetInfo().Code,
+				SystemName: cc.Adapter.GetInfo().Name,
+			}
+			list = append(list, &ci)
+		}
+	}
+
+	return &list
+}
+
+//=============================================================================
+
+func Connect(c *auth.Context, params *ConnectionParams) (*ConnectionResponse, error) {
 	connections.Lock()
 	defer connections.Unlock()
 
 	ad,ok := adapters[params.SystemCode]
 	if !ok {
-		return nil, req.NewRequestError("System not found: %v", params.SystemCode)
+		return nil, req.NewNotFoundError("System not found: %v", params.SystemCode)
 	}
 
 	ctx := &adapter.ConnectionContext{
 		Code: uuid.New().String(),
-		Username: us.Username,
+		Username: c.Session.Username,
 		Config: params.Config,
 		Adapter: ad,
 	}
 
 	err := ad.Connect(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
 	connections.m[ctx.Code] = ctx
 
 	return &ConnectionResponse{
 		Code: ctx.Code,
-		Error: messageFor(err),
 	}, nil
 }
 
 //=============================================================================
 
-func Disconnect(us *auth.UserSession, code string) (*ConnectionResponse, error) {
+func Disconnect(c *auth.Context, code string) error {
 	connections.Lock()
 	defer connections.Unlock()
 
 	ctx, ok := connections.m[code]
 	if !ok {
-		return nil, req.NewRequestError("Connection not found: %v", code)
+		return req.NewNotFoundError("Connection not found: %v", code)
 	}
 
-	if (ctx.Username != us.Username) || ( ! us.IsUserInRole(roles.Admin_Service)) {
-		return nil, req.NewAccessError("Connection not owned by user: %v", code)
+	us := c.Session
+
+	if ! us.IsAdmin() {
+		if ctx.Username != us.Username {
+			return req.NewForbiddenError("Connection not owned by user: %v", code)
+		}
 	}
 
 	err := ctx.Adapter.Disconnect(ctx)
 	delete(connections.m, code)
 
-	return &ConnectionResponse{
-		Code: code,
-		Error: messageFor(err),
-	}, nil
+	return err
 }
 
 //=============================================================================
@@ -113,6 +142,8 @@ func Disconnect(us *auth.UserSession, code string) (*ConnectionResponse, error) 
 //=============================================================================
 
 func init() {
+	adapters = map[string]adapter.Adapter{}
+
 	register(interactive.NewAdapter())
 	register(local      .NewAdapter())
 }
@@ -123,16 +154,6 @@ func register(a adapter.Adapter) {
 	info := a.GetInfo()
 	adapters[info.Code] = a
 	infos = append(infos, info)
-}
-
-//=============================================================================
-
-func messageFor(e error) string {
-	if e != nil {
-		return e.Error()
-	}
-
-	return ""
 }
 
 //=============================================================================

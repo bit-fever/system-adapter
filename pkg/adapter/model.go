@@ -31,26 +31,26 @@ type ParamType string
 //=============================================================================
 
 type AdapterParam struct {
-	Name      string
-	Type      ParamType // string|int|bool|group
-	Label     string
-	Nullable  bool
-	MinValue  int
-	MaxValue  int
-	Tooltip   string
-	GroupName string	// links this param to a group whose type is group
+	Name      string       `json:"name"`
+	Type      ParamType    `json:"type"`      // string|int|bool|group
+	Label     string       `json:"label"`
+	Nullable  bool         `json:"nullable"`
+	MinValue  int          `json:"minValue"`
+	MaxValue  int          `json:"maxValue"`
+	Tooltip   string       `json:"tooltip"`
+	GroupName string       `json:"groupName"` // links this param to a group whose type is group
 }
 
 //=============================================================================
 
 type AdapterInfo struct {
-	Code                  string
-	Name                  string
-	Params                []AdapterParam
-	SupportsFeed          bool
-	SupportsBroker        bool
-	SupportsMultipleFeeds bool
-	SupportsInventory     bool
+	Code                  string         `json:"code"`
+	Name                  string         `json:"name"`
+	SupportsFeed          bool           `json:"supportsFeed"`
+	SupportsBroker        bool           `json:"supportsBroker"`
+	SupportsMultipleFeeds bool           `json:"supportsMultipleFeeds"`
+	SupportsInventory     bool           `json:"supportsInventory"`
+	Params                []AdapterParam `json:"params"`
 }
 
 //=============================================================================
@@ -68,6 +68,15 @@ type ConnectionContext struct {
 	Username string
 	Config   map[string]string
 	Adapter  Adapter
+}
+
+//=============================================================================
+
+type ConnectionInfo struct {
+	Code       string `json:"code"`
+	Username   string `json:"username"`
+	SystemCode string `json:"systemCode"`
+	SystemName string `json:"systemName"`
 }
 
 //=============================================================================
