@@ -3,7 +3,7 @@ module github.com/bit-fever/system-adapter
 go 1.21
 
 require (
-	github.com/bit-fever/core v1.6.1
+	github.com/bit-fever/core v1.6.6
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.4.0
 )
