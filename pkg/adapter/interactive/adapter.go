@@ -33,13 +33,13 @@ var params []adapter.AdapterParam
 //-----------------------------------------------------------------------------
 
 var info = adapter.AdapterInfo{
-	Code                 : "IB",
-	Name                 : "Interactive Brokers",
-	Params               : params,
-	SupportsFeed         : true,
-	SupportsBroker       : true,
-	SupportsMultipleFeeds: false,
-	SupportsInventory    : true,
+	Code                : "IBKR",
+	Name                : "Interactive Brokers",
+	Params              : params,
+	SupportsData        : true,
+	SupportsBroker      : true,
+	SupportsMultipleData: false,
+	SupportsInventory   : true,
 }
 
 //=============================================================================

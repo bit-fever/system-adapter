@@ -33,13 +33,13 @@ var params []adapter.AdapterParam
 //-----------------------------------------------------------------------------
 
 var info = adapter.AdapterInfo{
-	Code                 : "LOCAL",
-	Name                 : "Local system",
-	Params               : params,
-	SupportsFeed         : true,
-	SupportsBroker       : true,
-	SupportsMultipleFeeds: true,
-	SupportsInventory    : false,
+	Code                : "LOCAL",
+	Name                : "Local system",
+	Params              : params,
+	SupportsData        : true,
+	SupportsBroker      : true,
+	SupportsMultipleData: true,
+	SupportsInventory   : false,
 }
 
 //=============================================================================

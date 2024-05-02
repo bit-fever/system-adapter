@@ -44,13 +44,13 @@ type AdapterParam struct {
 //=============================================================================
 
 type AdapterInfo struct {
-	Code                  string         `json:"code"`
-	Name                  string         `json:"name"`
-	SupportsFeed          bool           `json:"supportsFeed"`
-	SupportsBroker        bool           `json:"supportsBroker"`
-	SupportsMultipleFeeds bool           `json:"supportsMultipleFeeds"`
-	SupportsInventory     bool           `json:"supportsInventory"`
-	Params                []AdapterParam `json:"params"`
+	Code                 string         `json:"code"`
+	Name                 string         `json:"name"`
+	SupportsData         bool           `json:"supportsData"`
+	SupportsBroker       bool           `json:"supportsBroker"`
+	SupportsMultipleData bool           `json:"supportsMultipleData"`
+	SupportsInventory    bool           `json:"supportsInventory"`
+	Params               []AdapterParam `json:"params"`
 }
 
 //=============================================================================
