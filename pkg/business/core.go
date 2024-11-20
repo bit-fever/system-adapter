@@ -37,7 +37,9 @@ import (
 //=============================================================================
 
 var adapters map[string]adapter.Adapter
-var infos    []*adapter.AdapterInfo
+var infos    []*adapter.Info
+
+//-----------------------------------------------------------------------------
 
 var connections = struct {
 	sync.RWMutex
@@ -46,11 +48,32 @@ var connections = struct {
 
 //=============================================================================
 //===
+//=== Init
+//===
+//=============================================================================
+
+func init() {
+	adapters = map[string]adapter.Adapter{}
+
+	register(interactive.NewAdapter())
+	register(local      .NewAdapter())
+}
+
+//=============================================================================
+
+func register(a adapter.Adapter) {
+	info := a.GetInfo()
+	adapters[info.Code] = a
+	infos = append(infos, info)
+}
+
+//=============================================================================
+//===
 //=== Public methods
 //===
 //=============================================================================
 
-func GetAdapters() *[]*adapter.AdapterInfo {
+func GetAdapters() *[]*adapter.Info {
 	return &infos
 }
 
@@ -67,8 +90,8 @@ func GetConnections(c *auth.Context, filter map[string]any, offset int, limit in
 	for _, cc := range connections.m {
 		if us.IsAdmin() || us.Username == cc.Username {
 			ci := adapter.ConnectionInfo{
-				Code: cc.Code,
-				Username: cc.Username,
+				Code      : cc.Code,
+				Username  : cc.Username,
 				SystemCode: cc.Adapter.GetInfo().Code,
 				SystemName: cc.Adapter.GetInfo().Name,
 			}
@@ -139,21 +162,4 @@ func Disconnect(c *auth.Context, code string) error {
 //===
 //=== Private methods
 //===
-//=============================================================================
-
-func init() {
-	adapters = map[string]adapter.Adapter{}
-
-	register(interactive.NewAdapter())
-	register(local      .NewAdapter())
-}
-
-//=============================================================================
-
-func register(a adapter.Adapter) {
-	info := a.GetInfo()
-	adapters[info.Code] = a
-	infos = append(infos, info)
-}
-
 //=============================================================================

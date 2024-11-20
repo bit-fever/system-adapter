@@ -28,11 +28,11 @@ import "github.com/bit-fever/system-adapter/pkg/adapter"
 
 //=============================================================================
 
-var params []adapter.AdapterParam
+var params []*adapter.Param
 
 //-----------------------------------------------------------------------------
 
-var info = adapter.AdapterInfo{
+var info = adapter.Info{
 	Code                : "LOCAL",
 	Name                : "Local system",
 	Params              : params,
@@ -55,7 +55,7 @@ type local struct {
 
 //=============================================================================
 
-func (a *local) GetInfo() *adapter.AdapterInfo {
+func (a *local) GetInfo() *adapter.Info {
 	return &info
 }
 

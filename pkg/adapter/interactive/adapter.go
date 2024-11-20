@@ -28,11 +28,54 @@ import "github.com/bit-fever/system-adapter/pkg/adapter"
 
 //=============================================================================
 
-var params []adapter.AdapterParam
+var params = []*adapter.Param{
+	{
+		Name     : "username",
+		Type     : "string",
+		Nullable : false,
+		MinValue : 0,
+		MaxValue : 24,
+		GroupName: "",
+	},
+	{
+		Name     : "password",
+		Type     : "password",
+		Nullable : false,
+		MinValue : 0,
+		MaxValue : 24,
+		GroupName: "",
+	},
+	{
+		Name     : "live",
+		Type     : "bool",
+		Nullable : false,
+		MinValue : 0,
+		MaxValue : 0,
+		GroupName: "",
+	},
+	{
+		Name     : "authUrl",
+		Type     : "string",
+		DefValue : "https://www.interactivebrokers.co.uk/sso/Authenticator",
+		Nullable : false,
+		MinValue : 0,
+		MaxValue : 64,
+		GroupName: "",
+	},
+	{
+		Name     : "apiUrl",
+		Type     : "string",
+		DefValue : "https://api.ibkr.com",
+		Nullable : false,
+		MinValue : 0,
+		MaxValue : 64,
+		GroupName: "",
+	},
+}
 
 //-----------------------------------------------------------------------------
 
-var info = adapter.AdapterInfo{
+var info = adapter.Info{
 	Code                : "IBKR",
 	Name                : "Interactive Brokers",
 	Params              : params,
@@ -55,7 +98,7 @@ type ib struct {
 
 //=============================================================================
 
-func (a *ib) GetInfo() *adapter.AdapterInfo {
+func (a *ib) GetInfo() *adapter.Info {
 	return &info
 }
 

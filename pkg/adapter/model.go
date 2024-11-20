@@ -30,33 +30,32 @@ type ParamType string
 
 //=============================================================================
 
-type AdapterParam struct {
+type Param struct {
 	Name      string       `json:"name"`
-	Type      ParamType    `json:"type"`      // string|int|bool|group
-	Label     string       `json:"label"`
+	Type      ParamType    `json:"type"`      // string|int|bool|group|password
+	DefValue  string       `json:"defValue"`
 	Nullable  bool         `json:"nullable"`
 	MinValue  int          `json:"minValue"`
 	MaxValue  int          `json:"maxValue"`
-	Tooltip   string       `json:"tooltip"`
 	GroupName string       `json:"groupName"` // links this param to a group whose type is group
 }
 
 //=============================================================================
 
-type AdapterInfo struct {
-	Code                 string         `json:"code"`
-	Name                 string         `json:"name"`
-	SupportsData         bool           `json:"supportsData"`
-	SupportsBroker       bool           `json:"supportsBroker"`
-	SupportsMultipleData bool           `json:"supportsMultipleData"`
-	SupportsInventory    bool           `json:"supportsInventory"`
-	Params               []AdapterParam `json:"params"`
+type Info struct {
+	Code                 string   `json:"code"`
+	Name                 string   `json:"name"`
+	SupportsData         bool     `json:"supportsData"`
+	SupportsBroker       bool     `json:"supportsBroker"`
+	SupportsMultipleData bool     `json:"supportsMultipleData"`
+	SupportsInventory    bool     `json:"supportsInventory"`
+	Params               []*Param `json:"params"`
 }
 
 //=============================================================================
 
 type Adapter interface {
-	GetInfo() *AdapterInfo
+	GetInfo() *Info
 	Connect   (ctx *ConnectionContext) error
 	Disconnect(ctx *ConnectionContext) error
 }
