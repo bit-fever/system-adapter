@@ -1,6 +1,6 @@
 //=============================================================================
 /*
-Copyright © 2023 Andrea Carboni andrea.carboni71@gmail.com
+Copyright © 2024 Andrea Carboni andrea.carboni71@gmail.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -34,50 +34,6 @@ import (
 func getAdapters(c *auth.Context) {
 	list := business.GetAdapters()
 	_ = c.ReturnList(list, 0, 1000, len(*list))
-}
-
-//=============================================================================
-
-func getConnections(c *auth.Context) {
-	var filter map[string]any
-	offset, limit, err := c.GetPagingParams()
-
-	if err == nil {
-		list := business.GetConnections(c, filter, offset, limit)
-		_ = c.ReturnList(list, 0, 1000, len(*list))
-	}
-
-	c.ReturnError(err)
-}
-
-//=============================================================================
-
-func connect(c *auth.Context) {
-	params := business.ConnectionParams{}
-	err    := c.BindParamsFromBody(&params)
-
-	if err == nil {
-		rep, err := business.Connect(c, &params)
-		if err == nil {
-			_ = c.ReturnObject(rep)
-			return
-		}
-	}
-
-	c.ReturnError(err)
-}
-
-//=============================================================================
-
-func disconnect(c *auth.Context) {
-	code := c.GetCodeFromUrl()
-	err  := business.Disconnect(c, code)
-
-	if err == nil {
-		return
-	}
-
-	c.ReturnError(err)
 }
 
 //=============================================================================

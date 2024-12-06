@@ -1,6 +1,6 @@
 //=============================================================================
 /*
-Copyright © 2023 Andrea Carboni andrea.carboni71@gmail.com
+Copyright © 2024 Andrea Carboni andrea.carboni71@gmail.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,76 +24,24 @@ THE SOFTWARE.
 
 package interactive
 
-import "github.com/bit-fever/system-adapter/pkg/adapter"
-
-//=============================================================================
-
-var params = []*adapter.Param{
-	{
-		Name     : "username",
-		Type     : "string",
-		Nullable : false,
-		MinValue : 0,
-		MaxValue : 24,
-		GroupName: "",
-	},
-	{
-		Name     : "password",
-		Type     : "password",
-		Nullable : false,
-		MinValue : 0,
-		MaxValue : 24,
-		GroupName: "",
-	},
-	{
-		Name     : "live",
-		Type     : "bool",
-		Nullable : false,
-		MinValue : 0,
-		MaxValue : 0,
-		GroupName: "",
-	},
-	{
-		Name     : "authUrl",
-		Type     : "string",
-		DefValue : "https://www.interactivebrokers.co.uk/sso/Authenticator",
-		Nullable : false,
-		MinValue : 0,
-		MaxValue : 64,
-		GroupName: "",
-	},
-	{
-		Name     : "apiUrl",
-		Type     : "string",
-		DefValue : "https://api.ibkr.com",
-		Nullable : false,
-		MinValue : 0,
-		MaxValue : 64,
-		GroupName: "",
-	},
-}
-
-//-----------------------------------------------------------------------------
-
-var info = adapter.Info{
-	Code                : "IBKR",
-	Name                : "Interactive Brokers",
-	Params              : params,
-	SupportsData        : true,
-	SupportsBroker      : true,
-	SupportsMultipleData: false,
-	SupportsInventory   : true,
-}
+import (
+	"bytes"
+	"crypto/tls"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/bit-fever/core/req"
+	"github.com/bit-fever/system-adapter/pkg/adapter"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"time"
+)
 
 //=============================================================================
 
 func NewAdapter() adapter.Adapter {
 	return &ib{}
-}
-
-//=============================================================================
-
-type ib struct {
 }
 
 //=============================================================================
@@ -104,14 +52,179 @@ func (a *ib) GetInfo() *adapter.Info {
 
 //=============================================================================
 
-func (a *ib) Connect(ctx *adapter.ConnectionContext) error {
-	return nil
+func (a *ib) GetAuthUrl() string {
+	return a.params.AuthUrl
+}
+
+//=============================================================================
+
+func (a *ib) Clone(config map[string]any) adapter.Adapter {
+	b := *a
+	b.params = retrieveParams(config)
+	return &b
+}
+
+//=============================================================================
+
+func (a *ib) Connect(ctx *adapter.ConnectionContext) *adapter.ConnectionResult {
+	return &adapter.ConnectionResult{
+		InstanceCode: ctx.InstanceCode,
+		Status      : adapter.ConnectionStatusOpenUrl,
+	}
 }
 
 //=============================================================================
 
 func (a *ib) Disconnect(ctx *adapter.ConnectionContext) error {
 	return nil
+}
+
+//=============================================================================
+
+func (a *ib) IsWebLoginCompleted(httpCode int, path string) bool {
+	return httpCode == http.StatusFound && path == "/sso/Dispatcher"
+}
+//=============================================================================
+
+func (a *ib) InitFromWebLogin(reqHeader *http.Header, resCookies []*http.Cookie) error {
+	header, err := buildHttpHeader(reqHeader, resCookies)
+	if err != nil {
+		return err
+	}
+
+	a.header = header
+	a.client = &http.Client{
+		Timeout: time.Minute * 3,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+			},
+		},
+	}
+
+	res, err := a.ssoValidate()
+
+	if err != nil {
+		return err
+	}
+
+	if !res.Result {
+		return errors.New("session is invalid")
+	}
+
+	orders,err := a.getAccountOrders()
+
+	fmt.Println("ORDERS:"+ strconv.Itoa(len(orders.Orders)))
+	return nil
+}
+
+//=============================================================================
+//===
+//=== Private functions
+//===
+//=============================================================================
+
+func retrieveParams(values map[string]any) *Params {
+	return &Params{
+		AuthUrl: values[ParamAuthUrl] .(string),
+		ApiUrl : values[ParamApiUrl]  .(string),
+	}
+}
+
+//=============================================================================
+
+func buildHttpHeader(reqHeader *http.Header, resCookies []*http.Cookie) (*http.Header, error) {
+	userId, err := findUserId(resCookies)
+	if err != nil {
+		return nil, err
+	}
+
+	cookies := reqHeader.Get("Cookie")
+	cookies += "; "+ userId.Name+"="+ userId.Value
+
+	h := make(http.Header)
+	h.Set("Accept",         "*/*")
+	h.Set("Cache-Control",  "no-cache")
+	h.Set("Pragma",         "no-cache")
+	h.Set("Sec-Fetch-Dest", "empty")
+	h.Set("Sec-Fetch-Mode", "cors")
+
+	h.Set("Cookie",          cookies)
+	h.Set("Accept-Encoding", reqHeader.Get("Accept-Encoding"))
+	h.Set("Accept-Language", reqHeader.Get("Accept-Language"))
+
+	return &h, nil
+}
+
+//=============================================================================
+
+func findUserId(cookies []*http.Cookie) (*http.Cookie, error){
+	for _, cookie := range cookies {
+		if cookie.Name == "USERID" {
+			return cookie, nil
+		}
+	}
+
+	return nil, errors.New("cookie USERID was not found")
+}
+
+//=============================================================================
+
+func (a *ib) doGet(url string, output any) error {
+	rq, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		slog.Error("Error creating a GET request", "error", err.Error())
+		return err
+	}
+
+	rq.Header = *a.header
+	res, err := a.client.Do(rq)
+	return req.BuildResponse(res, err, &output)
+}
+
+//=============================================================================
+
+func (a *ib) doPost(client *http.Client, url string, params any, output any) error {
+	body, err := json.Marshal(&params)
+	if err != nil {
+		slog.Error("Error marshalling POST parameter", "error", err.Error())
+		return err
+	}
+
+	reader := bytes.NewReader(body)
+
+	rq, err := http.NewRequest("POST", url, reader)
+	if err != nil {
+		slog.Error("Error creating a POST request", "error", err.Error())
+		return err
+	}
+	rq.Header.Set("Content-Type", "Application/json")
+
+	res, err := client.Do(rq)
+	return req.BuildResponse(res, err, &output)
+}
+
+//=============================================================================
+//===
+//=== IBKR services
+//===
+//=============================================================================
+
+func (a *ib) ssoValidate() (*Validate, error) {
+	apiUrl := a.params.ApiUrl +"/v1/api/sso/validate"
+	var res Validate
+	err := a.doGet(apiUrl, &res)
+
+	return &res, err
+}
+
+//=============================================================================
+
+func (a *ib) getAccountOrders() (*Orders, error) {
+	apiUrl := a.params.ApiUrl +"/v1/api/iserver/account/orders?force=true"
+	var res Orders
+	err := a.doGet(apiUrl, &res)
+
+	return &res, err
 }
 
 //=============================================================================

@@ -22,81 +22,87 @@ THE SOFTWARE.
 */
 //=============================================================================
 
-package local
+package service
 
 import (
+	"github.com/bit-fever/core/auth"
+	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
+	"github.com/bit-fever/system-adapter/pkg/business"
+	"github.com/gin-gonic/gin"
+	"log/slog"
 	"net/http"
+	"net/url"
 )
 
 //=============================================================================
 
-var params []*adapter.Param
+func getConnections(c *auth.Context) {
+	var filter map[string]any
+	offset, limit, err := c.GetPagingParams()
 
-//-----------------------------------------------------------------------------
+	if err == nil {
+		list := business.GetConnections(c, filter, offset, limit)
+		_ = c.ReturnList(list, 0, 1000, len(*list))
+	}
 
-var info = adapter.Info{
-	Code                : "LOCAL",
-	Name                : "Local system",
-	Params              : params,
-	SupportsData        : true,
-	SupportsBroker      : true,
-	SupportsMultipleData: true,
-	SupportsInventory   : false,
+	c.ReturnError(err)
 }
 
 //=============================================================================
 
-func NewAdapter() adapter.Adapter {
-	return &local{}
+func connect(c *auth.Context) {
+	spec := business.ConnectionSpec{}
+	err  := c.BindParamsFromBody(&spec)
+
+	if err == nil {
+		var res *adapter.ConnectionResult
+		res, err = business.Connect(c, &spec)
+		if err == nil {
+			_ = c.ReturnObject(res)
+			return
+		}
+	}
+
+	c.ReturnError(err)
 }
 
 //=============================================================================
 
-type local struct {
+func disconnect(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+	err  := business.Disconnect(c, code)
+
+	if err == nil {
+		return
+	}
+
+	c.ReturnError(err)
 }
 
 //=============================================================================
 
-func (a *local) GetInfo() *adapter.Info {
-	return &info
-}
+func webLogin(c *gin.Context) {
+	code := c.Param("code")
 
-//=============================================================================
+	ctx := business.GetConnectionContextByInstanceCode(code)
+	if ctx == nil {
+		req.ReturnError(c, req.NewBadRequestError("Connection context not found : "+ code))
+		return
+	}
 
-func (a *local) GetAuthUrl() string {
-	return ""
-}
+	authUrl := ctx.Adapter.GetAuthUrl()
+	target, err := url.Parse(authUrl)
+	if err != nil {
+		req.ReturnError(c, req.NewBadRequestError("Bad authentication url : "+ authUrl))
+		return
+	}
 
-//=============================================================================
+	c.SetCookie(InstanceCode, code, 0, "", "", true, true)
 
-func (a *local) Clone(config map[string]any) adapter.Adapter {
-	b := *a
-	return &b
-}
-
-//=============================================================================
-
-func (a *local) Connect(ctx *adapter.ConnectionContext) *adapter.ConnectionResult {
-	return nil
-}
-
-//=============================================================================
-
-func (a *local) Disconnect(ctx *adapter.ConnectionContext) error {
-	return nil
-}
-
-//=============================================================================
-
-func (a *local) IsWebLoginCompleted(httpCode int, path string) bool {
-	return true
-}
-
-//=============================================================================
-
-func (a *local) InitFromWebLogin(reqHeader *http.Header, resCookies []*http.Cookie) error {
-	return nil
+	location := target.Path
+	slog.Info("Redirecting initial request to : "+location)
+	c.Redirect(http.StatusFound, location)
 }
 
 //=============================================================================

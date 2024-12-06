@@ -26,15 +26,9 @@ package business
 
 //=============================================================================
 
-type ConnectionParams struct {
-	SystemCode string            `json:"systemCode" binding:"required"`
-	Config     map[string]string `json:"config"     binding:"required"`
-}
-
-//=============================================================================
-
-type ConnectionResponse struct {
-	Code  string `json:"code"`
+type ConnectionSpec struct {
+	SystemCode string         `json:"systemCode" binding:"required"`
+	Config     map[string]any `json:"config"     binding:"required"`
 }
 
 //=============================================================================

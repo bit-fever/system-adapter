@@ -24,9 +24,22 @@ THE SOFTWARE.
 
 package adapter
 
+import (
+	"errors"
+	"log/slog"
+	"net/http"
+	"reflect"
+	"strconv"
+)
+
 //=============================================================================
 
 type ParamType string
+
+const ParamTypeString   ParamType = "string"
+const ParamTypePassword ParamType = "password"
+const ParamTypeBool     ParamType = "bool"
+const ParamTypeInt      ParamType = "int"
 
 //=============================================================================
 
@@ -38,6 +51,71 @@ type Param struct {
 	MinValue  int          `json:"minValue"`
 	MaxValue  int          `json:"maxValue"`
 	GroupName string       `json:"groupName"` // links this param to a group whose type is group
+}
+
+//-----------------------------------------------------------------------------
+
+func (p *Param) Validate(values map[string]any) error {
+	value,ok := values[p.Name]
+
+	if !ok {
+		//--- Check default value
+
+		if p.DefValue != "" {
+			switch p.Type {
+				case ParamTypeBool:
+					if p.DefValue != "true" && p.DefValue != "false" {
+						return errors.New("invalid default value for a boolean parameter : "+ p.Name)
+					}
+					break;
+
+				case ParamTypeInt:
+					v, err := strconv.Atoi(p.DefValue)
+					if err != nil {
+						return errors.New("invalid value for an integer parameter : "+ p.Name)
+					}
+					if v<p.MinValue || v>p.MaxValue {
+						return errors.New("invalid range for this integer parameter : "+ p.Name)
+					}
+					break;
+			}
+			return nil
+		}
+
+		if !p.Nullable {
+			return errors.New("missing mandatory value for parameter : "+ p.Name)
+		}
+	} else {
+		//--- Check provided value
+
+		t := reflect.TypeOf(value)
+		slog.Info("Param Type is", "type", t.Name())
+		switch t.Name() {
+			case "string":
+				if p.Type == ParamTypeString || p.Type == ParamTypePassword {
+					return nil
+				}
+				break;
+
+			case "bool":
+				if p.Type == ParamTypeBool {
+					return nil
+				}
+				break;
+
+			case "int":
+				if p.Type == ParamTypeInt {
+					return nil
+				}
+
+			default:
+				return errors.New("unknown parameter type : "+ p.Name)
+		}
+
+		return errors.New("invalid parameter value : "+ p.Name)
+	}
+
+	return nil
 }
 
 //=============================================================================
@@ -55,27 +133,47 @@ type Info struct {
 //=============================================================================
 
 type Adapter interface {
-	GetInfo() *Info
-	Connect   (ctx *ConnectionContext) error
-	Disconnect(ctx *ConnectionContext) error
+	GetInfo()    *Info
+	GetAuthUrl() string
+	Clone        (config map[string]any)  Adapter
+	Connect      (ctx *ConnectionContext) *ConnectionResult
+	Disconnect   (ctx *ConnectionContext) error
+
+	IsWebLoginCompleted(httpCode int, path string) bool
+	InitFromWebLogin(reqHeader *http.Header, resCookies []*http.Cookie) error
 }
 
 //=============================================================================
 
 type ConnectionContext struct {
-	Code     string
-	Username string
-	Config   map[string]string
-	Adapter  Adapter
+	InstanceCode string
+	Username     string
+	Host         string
+	Adapter      Adapter
 }
 
 //=============================================================================
 
 type ConnectionInfo struct {
-	Code       string `json:"code"`
-	Username   string `json:"username"`
-	SystemCode string `json:"systemCode"`
-	SystemName string `json:"systemName"`
+	InstanceCode string `json:"instanceCode"`
+	Username     string `json:"username"`
+	SystemCode   string `json:"systemCode"`
+	SystemName   string `json:"systemName"`
+}
+
+//=============================================================================
+
+const ConnectionStatusConnected    = "connected"
+const ConnectionStatusDisconnected = "disconnected"
+const ConnectionStatusError        = "error"
+const ConnectionStatusOpenUrl      = "open-url"
+
+//-----------------------------------------------------------------------------
+
+type ConnectionResult struct {
+	InstanceCode string `json:"instanceCode"`
+	Status       string `json:"status"`
+	Message      string `json:"message"`
 }
 
 //=============================================================================
