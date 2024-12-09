@@ -29,12 +29,10 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -67,6 +65,13 @@ func (a *ib) Clone(config map[string]any) adapter.Adapter {
 //=============================================================================
 
 func (a *ib) Connect(ctx *adapter.ConnectionContext) *adapter.ConnectionResult {
+	if a.params.NoAuth {
+		return &adapter.ConnectionResult{
+			InstanceCode: ctx.InstanceCode,
+			Status      : adapter.ConnectionStatusConnected,
+		}
+	}
+
 	return &adapter.ConnectionResult{
 		InstanceCode: ctx.InstanceCode,
 		Status      : adapter.ConnectionStatusOpenUrl,
@@ -111,9 +116,10 @@ func (a *ib) InitFromWebLogin(reqHeader *http.Header, resCookies []*http.Cookie)
 		return errors.New("session is invalid")
 	}
 
-	orders,err := a.getAccountOrders()
-
-	fmt.Println("ORDERS:"+ strconv.Itoa(len(orders.Orders)))
+//	orders,err := a.getAccountOrders()
+//	pnl,err := a.getAccountProfitAndLoss()
+//	tic,err := a.tickle()
+//	fmt.Println("RES:"+tic.Session)
 	return nil
 }
 
@@ -183,7 +189,7 @@ func (a *ib) doGet(url string, output any) error {
 
 //=============================================================================
 
-func (a *ib) doPost(client *http.Client, url string, params any, output any) error {
+func (a *ib) doPost(url string, params any, output any) error {
 	body, err := json.Marshal(&params)
 	if err != nil {
 		slog.Error("Error marshalling POST parameter", "error", err.Error())
@@ -197,9 +203,10 @@ func (a *ib) doPost(client *http.Client, url string, params any, output any) err
 		slog.Error("Error creating a POST request", "error", err.Error())
 		return err
 	}
+	rq.Header = *a.header
 	rq.Header.Set("Content-Type", "Application/json")
 
-	res, err := client.Do(rq)
+	res, err := a.client.Do(rq)
 	return req.BuildResponse(res, err, &output)
 }
 
@@ -219,10 +226,30 @@ func (a *ib) ssoValidate() (*Validate, error) {
 
 //=============================================================================
 
-func (a *ib) getAccountOrders() (*Orders, error) {
+func (a *ib) getAccountOrders() (*OrdersResponse, error) {
 	apiUrl := a.params.ApiUrl +"/v1/api/iserver/account/orders?force=true"
-	var res Orders
+	var res OrdersResponse
 	err := a.doGet(apiUrl, &res)
+
+	return &res, err
+}
+
+//=============================================================================
+
+func (a *ib) getAccountProfitAndLoss() (*AccountPnLResponse, error) {
+	apiUrl := a.params.ApiUrl +"/v1/api/iserver/account/pnl/partitioned"
+	var res AccountPnLResponse
+	err := a.doGet(apiUrl, &res)
+
+	return &res, err
+}
+
+//=============================================================================
+
+func (a *ib) tickle() (*TickleResponse, error) {
+	apiUrl := a.params.ApiUrl +"/v1/api/tickle"
+	var res TickleResponse
+	err := a.doPost(apiUrl, "{}", &res)
 
 	return &res, err
 }
