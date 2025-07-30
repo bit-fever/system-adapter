@@ -28,6 +28,7 @@ import (
 	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"github.com/bit-fever/system-adapter/pkg/adapter/interactive"
 	"github.com/bit-fever/system-adapter/pkg/adapter/local"
+	"github.com/bit-fever/system-adapter/pkg/adapter/tradestation"
 )
 
 //=============================================================================
@@ -44,8 +45,9 @@ var infos    []*adapter.Info
 func init() {
 	adapters = map[string]adapter.Adapter{}
 
-	register(interactive.NewAdapter())
-	register(local      .NewAdapter())
+	register(local       .NewAdapter())
+	register(tradestation.NewAdapter())
+	register(interactive .NewAdapter())
 }
 
 //=============================================================================
@@ -64,6 +66,18 @@ func register(a adapter.Adapter) {
 
 func GetAdapters() *[]*adapter.Info {
 	return &infos
+}
+
+//=============================================================================
+
+func GetAdapter(code string) *adapter.Info {
+	for _,a := range infos {
+		if a.Code == code {
+			return a
+		}
+	}
+
+	return nil
 }
 
 //=============================================================================

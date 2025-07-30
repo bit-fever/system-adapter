@@ -33,29 +33,40 @@ import (
 )
 
 //=============================================================================
+//=== Common connection parameters
 
-type ParamType string
-
-const ParamTypeString   ParamType = "string"
-const ParamTypePassword ParamType = "password"
-const ParamTypeBool     ParamType = "bool"
-const ParamTypeInt      ParamType = "int"
+const (
+	ParamUsername = "username"
+	ParamPassword = "password"
+	ParamTwoFACode= "twoFACode"
+)
 
 //=============================================================================
 
-type Param struct {
-	Name      string       `json:"name"`
-	Type      ParamType    `json:"type"`      // string|int|bool|group|password
-	DefValue  string       `json:"defValue"`
-	Nullable  bool         `json:"nullable"`
-	MinValue  int          `json:"minValue"`
-	MaxValue  int          `json:"maxValue"`
-	GroupName string       `json:"groupName"` // links this param to a group whose type is group
+type ParamType string
+
+const (
+	ParamTypeString   ParamType = "string"
+	ParamTypePassword ParamType = "password"
+	ParamTypeBool     ParamType = "bool"
+	ParamTypeInt      ParamType = "int"
+)
+
+//=============================================================================
+
+type ParamDef struct {
+	Name      string      `json:"name"`
+	Type      ParamType   `json:"type"`      // string|int|bool|group|password
+	DefValue  string      `json:"defValue"`
+	Nullable  bool        `json:"nullable"`
+	MinValue  int         `json:"minValue"`
+	MaxValue  int         `json:"maxValue"`
+	GroupName string      `json:"groupName"` // links this param to a group whose type is group
 }
 
 //-----------------------------------------------------------------------------
 
-func (p *Param) Validate(values map[string]any) error {
+func (p *ParamDef) Validate(values map[string]any) error {
 	value,ok := values[p.Name]
 
 	if !ok {
@@ -121,22 +132,34 @@ func (p *Param) Validate(values map[string]any) error {
 //=============================================================================
 
 type Info struct {
-	Code                 string   `json:"code"`
-	Name                 string   `json:"name"`
-	SupportsData         bool     `json:"supportsData"`
-	SupportsBroker       bool     `json:"supportsBroker"`
-	SupportsMultipleData bool     `json:"supportsMultipleData"`
-	SupportsInventory    bool     `json:"supportsInventory"`
-	Params               []*Param `json:"params"`
+	Code                 string       `json:"code"`
+	Name                 string       `json:"name"`
+	SupportsData         bool         `json:"supportsData"`
+	SupportsBroker       bool         `json:"supportsBroker"`
+	SupportsMultipleData bool         `json:"supportsMultipleData"`
+	SupportsInventory    bool         `json:"supportsInventory"`
+	ConfigParams         []*ParamDef  `json:"configParams"`
+	ConnectParams        []*ParamDef  `json:"connectParams"`
 }
 
 //=============================================================================
 
+type ConnectionResult int
+
+const (
+	ConnectionResultError     = -1
+	ConnectionResultConnected =  0
+	ConnectionResultOpenUrl   =  1
+	ConnectionResultProxyUrl  =  2
+)
+
+//-----------------------------------------------------------------------------
+
 type Adapter interface {
 	GetInfo()    *Info
 	GetAuthUrl() string
-	Clone        (config map[string]any)  Adapter
-	Connect      (ctx *ConnectionContext) *ConnectionResult
+	Clone        (configParams map[string]any, connectParams map[string]any)  Adapter
+	Connect      (ctx *ConnectionContext) (ConnectionResult, error)
 	Disconnect   (ctx *ConnectionContext) error
 
 	IsWebLoginCompleted(httpCode int, path string) bool
@@ -145,35 +168,22 @@ type Adapter interface {
 
 //=============================================================================
 
-type ConnectionContext struct {
-	InstanceCode string
-	Username     string
-	Host         string
-	Adapter      Adapter
-}
+type ContextStatus int
 
-//=============================================================================
-
-type ConnectionInfo struct {
-	InstanceCode string `json:"instanceCode"`
-	Username     string `json:"username"`
-	SystemCode   string `json:"systemCode"`
-	SystemName   string `json:"systemName"`
-}
-
-//=============================================================================
-
-const ConnectionStatusConnected    = "connected"
-const ConnectionStatusDisconnected = "disconnected"
-const ConnectionStatusError        = "error"
-const ConnectionStatusOpenUrl      = "open-url"
+const (
+	ContextStatusDisconnected = 0
+	ContextStatusConnecting   = 1
+	ContextStatusConnected    = 2
+)
 
 //-----------------------------------------------------------------------------
 
-type ConnectionResult struct {
-	InstanceCode string `json:"instanceCode"`
-	Status       string `json:"status"`
-	Message      string `json:"message"`
+type ConnectionContext struct {
+	Username       string
+	ConnectionCode string
+	Host           string
+	Status         ContextStatus
+	Adapter        Adapter
 }
 
 //=============================================================================

@@ -26,18 +26,18 @@ package business
 
 import (
 	"github.com/bit-fever/core/auth"
+	"github.com/bit-fever/core/msg"
 	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
-	"github.com/google/uuid"
 	"sync"
 )
 
 //=============================================================================
 
-var connections = struct {
+var userConnections = struct {
 	sync.RWMutex
-	m map[string]*adapter.ConnectionContext
-}{m: make(map[string]*adapter.ConnectionContext)}
+	m map[string]*UserConnections
+}{m: make(map[string]*UserConnections)}
 
 //=============================================================================
 //===
@@ -45,21 +45,22 @@ var connections = struct {
 //===
 //=============================================================================
 
-func GetConnections(c *auth.Context, filter map[string]any, offset int, limit int) *[]*adapter.ConnectionInfo {
-	connections.Lock()
-	defer connections.Unlock()
+func GetConnections(c *auth.Context, filter map[string]any, offset int, limit int) *[]*ConnectionInfo {
+	userConnections.Lock()
+	defer userConnections.Unlock()
 
 	us := c.Session
+	uc,found := userConnections.m[us.Username]
 
-	var list []*adapter.ConnectionInfo
+	var list []*ConnectionInfo
 
-	for _, cc := range connections.m {
-		if us.IsAdmin() || us.Username == cc.Username {
-			ci := adapter.ConnectionInfo{
-				InstanceCode: cc.InstanceCode,
-				Username    : cc.Username,
-				SystemCode  : cc.Adapter.GetInfo().Code,
-				SystemName  : cc.Adapter.GetInfo().Name,
+	if found {
+		for _, ctx := range uc.contexts {
+			ci := ConnectionInfo{
+				Username      : ctx.Username,
+				ConnectionCode: ctx.ConnectionCode,
+				SystemCode    : ctx.Adapter.GetInfo().Code,
+				SystemName    : ctx.Adapter.GetInfo().Name,
 			}
 			list = append(list, &ci)
 		}
@@ -71,50 +72,117 @@ func GetConnections(c *auth.Context, filter map[string]any, offset int, limit in
 //=============================================================================
 
 func GetConnectionContextByInstanceCode(instanceCode string) *adapter.ConnectionContext {
-	connections.Lock()
-	defer connections.Unlock()
+	userConnections.Lock()
+	defer userConnections.Unlock()
 
-	ctx, ok := connections.m[instanceCode]
-	if !ok {
-		return nil
-	}
+	//TODO
+	//for _,uc := range userConnections.m {
+	//	for _,ctx := range uc.contexts {
+	//		if ctx.InstanceCode == instanceCode {
+	//			return ctx
+	//		}
+	//	}
+	//}
 
-	return ctx
+	return nil
 }
 
 //=============================================================================
 
-func Connect(c *auth.Context, cs *ConnectionSpec) (*adapter.ConnectionResult, error) {
-	connections.Lock()
-	defer connections.Unlock()
+func Connect(c *auth.Context, connectionCode string, cs *ConnectionSpec) (*ConnectionResult, error) {
+	user := c.Session.Username
+
+	userConnections.Lock()
+	defer userConnections.Unlock()
+	uc,found := userConnections.m[user]
+
+	//--- Add entry if it is the first time
+
+	if !found {
+		uc = NewUserConnections()
+		userConnections.m[user] = uc
+	}
+
+	ctx,found := uc.contexts[connectionCode]
+	if found {
+		if ctx.Status == adapter.ContextStatusConnected {
+			return &ConnectionResult{
+				Status : ConnectionStatusConnected,
+				Message: "Already connected",
+			}, nil
+		}
+
+		if ctx.Status == adapter.ContextStatusConnecting {
+			return &ConnectionResult{
+				Status : ConnectionStatusConnecting,
+				Message: "Still connecting",
+			}, nil
+		}
+	}
 
 	ad,ok := adapters[cs.SystemCode]
 	if !ok {
 		return nil, req.NewNotFoundError("System not found: %v", cs.SystemCode)
 	}
 
-	err := validateParameters(ad.GetInfo().Params, cs.Config)
+	err := validateParameters(ad.GetInfo().ConfigParams, cs.ConfigParams)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx := &adapter.ConnectionContext{
-		InstanceCode: uuid.New().String(),
-		Username    : c.Session.Username,
-		Host        : c.Gin.Request.Host,
-		Adapter     : ad.Clone(cs.Config),
+	err = validateParameters(ad.GetInfo().ConnectParams, cs.ConnectParams)
+	if err != nil {
+		return nil, err
 	}
 
-	res := ctx.Adapter.Connect(ctx)
+	ctx = &adapter.ConnectionContext{
+		ConnectionCode: connectionCode,
+		Username      : c.Session.Username,
+		Host          : c.Gin.Request.Host,
+		Adapter       : ad.Clone(cs.ConfigParams, cs.ConnectParams),
+		Status        : adapter.ContextStatusDisconnected,
+	}
 
-	switch res.Status {
-		case adapter.ConnectionStatusConnected:
-			connections.m[ctx.InstanceCode] = ctx
+	//--- It is better to store again the context even if it is already there: the user could use the
+	//--- same connection code but with a different adapter
 
-		case adapter.ConnectionStatusOpenUrl:
-			link := "https://bitfever-server:8449/api/system/v1/connections/"+ctx.InstanceCode +"/login"
-			res.Message = link
-			connections.m[ctx.InstanceCode] = ctx
+	uc.contexts[connectionCode] = ctx
+
+	res := &ConnectionResult{
+		Status : ConnectionStatusError,
+		Message: err.Error(),
+		Action: ConnectionActionNone,
+	}
+
+	cr,err := ctx.Adapter.Connect(ctx)
+	if err != nil {
+		return res,nil
+	}
+
+	err = sendConnectionChangeMessage(c, ctx)
+	if err != nil {
+		return &ConnectionResult{
+			Status : ConnectionStatusError,
+			Message: err.Error(),
+			Action: ConnectionActionNone,
+		}, nil
+	}
+
+	switch cr {
+		case adapter.ConnectionResultConnected:
+			res.Status = ConnectionStatusConnected
+			res.Action = ConnectionActionNone
+
+		case adapter.ConnectionResultOpenUrl:
+			res.Status = ConnectionStatusConnecting
+			res.Action = ConnectionActionOpenUrl
+			res.Message = ctx.Adapter.GetAuthUrl()
+
+		//TODO: to review: hardcoded url
+		case adapter.ConnectionResultProxyUrl:
+			res.Status  = ConnectionStatusConnecting
+			res.Action  = ConnectionActionOpenUrl
+			res.Message = "https://bitfever-server:8449/api/system/v1/weblogin/"+ user +"/"+ connectionCode +"/login"
 	}
 
 	return res, nil
@@ -122,27 +190,36 @@ func Connect(c *auth.Context, cs *ConnectionSpec) (*adapter.ConnectionResult, er
 
 //=============================================================================
 
-func Disconnect(c *auth.Context, code string) error {
-	connections.Lock()
-	defer connections.Unlock()
+func Disconnect(c *auth.Context, connectionCode string) error {
+	user := c.Session.Username
 
-	ctx, ok := connections.m[code]
+	userConnections.Lock()
+	defer userConnections.Unlock()
+
+	uc, ok := userConnections.m[user]
 	if !ok {
-		return req.NewNotFoundError("Connection not found: %v", code)
+		return req.NewNotFoundError("Connection not found for user: %v", user)
 	}
 
-	us := c.Session
-
-	if ! us.IsAdmin() {
-		if ctx.Username != us.Username {
-			return req.NewForbiddenError("Connection not owned by user: %v", code)
-		}
+	ctx, found := uc.contexts[connectionCode]
+	if !found {
+		return req.NewNotFoundError("Connection not found: %v", connectionCode)
 	}
 
-	err := ctx.Adapter.Disconnect(ctx)
-	delete(connections.m, code)
+	if ctx.Status == adapter.ContextStatusDisconnected {
+		return nil
+	}
 
-	return err
+	err := sendConnectionChangeMessage(c, ctx)
+	if err != nil {
+		return req.NewServerErrorByError(err)
+	}
+
+	_ = ctx.Adapter.Disconnect(ctx)
+	ctx.Status = adapter.ContextStatusDisconnected
+	ctx.Host   = ""
+
+	return nil
 }
 
 //=============================================================================
@@ -151,12 +228,31 @@ func Disconnect(c *auth.Context, code string) error {
 //===
 //=============================================================================
 
-func validateParameters(params []*adapter.Param, values map[string]any) error {
+func validateParameters(params []*adapter.ParamDef, values map[string]any) error {
 	for _, p := range params {
 		err := p.Validate(values)
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+//=============================================================================
+
+func sendConnectionChangeMessage(c *auth.Context, ctx *adapter.ConnectionContext) error {
+	ccm := ConnectionChangeSystemMessage{
+		Username      : ctx.Username,
+		ConnectionCode: ctx.ConnectionCode,
+		SystemCode    : ctx.Adapter.GetInfo().Code,
+		Status        : ctx.Status,
+	}
+	err := msg.SendMessage(msg.ExSystem, msg.SourceConnection, msg.TypeChange, &ccm)
+
+	if err != nil {
+		c.Log.Error("sendConnectionChangeMessage: Could not publish the change message", "error", err.Error())
+		return err
 	}
 
 	return nil

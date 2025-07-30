@@ -27,7 +27,6 @@ package service
 import (
 	"github.com/bit-fever/core/auth"
 	"github.com/bit-fever/core/req"
-	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"github.com/bit-fever/system-adapter/pkg/business"
 	"github.com/gin-gonic/gin"
 	"log/slog"
@@ -52,12 +51,13 @@ func getConnections(c *auth.Context) {
 //=============================================================================
 
 func connect(c *auth.Context) {
+	code := c.GetCodeFromUrl()
 	spec := business.ConnectionSpec{}
 	err  := c.BindParamsFromBody(&spec)
 
 	if err == nil {
-		var res *adapter.ConnectionResult
-		res, err = business.Connect(c, &spec)
+		var res *business.ConnectionResult
+		res, err = business.Connect(c, code, &spec)
 		if err == nil {
 			_ = c.ReturnObject(res)
 			return

@@ -26,6 +26,7 @@ package service
 
 import (
 	"github.com/bit-fever/core/auth"
+	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/business"
 )
 
@@ -34,6 +35,19 @@ import (
 func getAdapters(c *auth.Context) {
 	list := business.GetAdapters()
 	_ = c.ReturnList(list, 0, 1000, len(*list))
+}
+
+//=============================================================================
+
+func getAdapter(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+	a    := business.GetAdapter(code)
+
+	if a != nil {
+		_= c.ReturnObject(a)
+	} else {
+		c.ReturnError(req.NewNotFoundError(code))
+	}
 }
 
 //=============================================================================

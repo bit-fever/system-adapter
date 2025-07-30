@@ -24,11 +24,72 @@ THE SOFTWARE.
 
 package business
 
+import (
+	"github.com/bit-fever/system-adapter/pkg/adapter"
+	"sync"
+)
+
 //=============================================================================
 
 type ConnectionSpec struct {
-	SystemCode string         `json:"systemCode" binding:"required"`
-	Config     map[string]any `json:"config"     binding:"required"`
+	SystemCode     string         `json:"systemCode"     binding:"required"`
+	ConfigParams   map[string]any `json:"configParams"   binding:"required"`
+	ConnectParams  map[string]any `json:"connectParams"  binding:"required"`
+}
+
+//=============================================================================
+
+type ConnectionInfo struct {
+	Username       string `json:"username"`
+	ConnectionCode string `json:"connectionCode"`
+	SystemCode     string `json:"systemCode"`
+	SystemName     string `json:"systemName"`
+	Status         string `json:"status"`
+}
+
+//=============================================================================
+
+type UserConnections struct {
+	sync.RWMutex
+	username string
+	contexts map[string]*adapter.ConnectionContext
+}
+
+//-----------------------------------------------------------------------------
+
+func NewUserConnections() *UserConnections {
+	uc := &UserConnections{}
+	uc.contexts = make(map[string]*adapter.ConnectionContext)
+
+	return uc
+}
+
+//=============================================================================
+
+type ConnectionChangeSystemMessage struct {
+	Username       string                `json:"username"`
+	ConnectionCode string                `json:"connectionCode"`
+	SystemCode     string                `json:"systemCode"`
+	Status         adapter.ContextStatus `json:"status"`
+}
+
+//=============================================================================
+
+const (
+	ConnectionStatusConnecting = "connecting"
+	ConnectionStatusConnected  = "connected"
+	ConnectionStatusError      = "error"
+
+	ConnectionActionNone       = "none"
+	ConnectionActionOpenUrl    = "open-url"
+)
+
+//-----------------------------------------------------------------------------
+
+type ConnectionResult struct {
+	Status  string `json:"status"`
+	Action  string `json:"action"`
+	Message string `json:"message"`
 }
 
 //=============================================================================

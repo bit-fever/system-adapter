@@ -51,31 +51,28 @@ func (a *ib) GetInfo() *adapter.Info {
 //=============================================================================
 
 func (a *ib) GetAuthUrl() string {
-	return a.params.AuthUrl
+	return a.configParams.AuthUrl
 }
 
 //=============================================================================
 
-func (a *ib) Clone(config map[string]any) adapter.Adapter {
+func (a *ib) Clone(configParams map[string]any, connectParams map[string]any) adapter.Adapter {
 	b := *a
-	b.params = retrieveParams(config)
+	b.configParams = retrieveParams(configParams)
 	return &b
 }
 
 //=============================================================================
 
-func (a *ib) Connect(ctx *adapter.ConnectionContext) *adapter.ConnectionResult {
-	if a.params.NoAuth {
-		return &adapter.ConnectionResult{
-			InstanceCode: ctx.InstanceCode,
-			Status      : adapter.ConnectionStatusConnected,
-		}
+func (a *ib) Connect(ctx *adapter.ConnectionContext) (adapter.ConnectionResult,error) {
+	if a.configParams.NoAuth {
+		//TODO: we should check if the connection actually works...
+		//---   connection to the gateway
+
+		return adapter.ConnectionResultConnected,nil
 	}
 
-	return &adapter.ConnectionResult{
-		InstanceCode: ctx.InstanceCode,
-		Status      : adapter.ConnectionStatusOpenUrl,
-	}
+	return adapter.ConnectionResultProxyUrl,nil
 }
 
 //=============================================================================
@@ -217,7 +214,7 @@ func (a *ib) doPost(url string, params any, output any) error {
 //=============================================================================
 
 func (a *ib) ssoValidate() (*Validate, error) {
-	apiUrl := a.params.ApiUrl +"/v1/api/sso/validate"
+	apiUrl := a.configParams.ApiUrl +"/v1/api/sso/validate"
 	var res Validate
 	err := a.doGet(apiUrl, &res)
 
@@ -227,7 +224,7 @@ func (a *ib) ssoValidate() (*Validate, error) {
 //=============================================================================
 
 func (a *ib) getAccountOrders() (*OrdersResponse, error) {
-	apiUrl := a.params.ApiUrl +"/v1/api/iserver/account/orders?force=true"
+	apiUrl := a.configParams.ApiUrl +"/v1/api/iserver/account/orders?force=true"
 	var res OrdersResponse
 	err := a.doGet(apiUrl, &res)
 
@@ -237,7 +234,7 @@ func (a *ib) getAccountOrders() (*OrdersResponse, error) {
 //=============================================================================
 
 func (a *ib) getAccountProfitAndLoss() (*AccountPnLResponse, error) {
-	apiUrl := a.params.ApiUrl +"/v1/api/iserver/account/pnl/partitioned"
+	apiUrl := a.configParams.ApiUrl +"/v1/api/iserver/account/pnl/partitioned"
 	var res AccountPnLResponse
 	err := a.doGet(apiUrl, &res)
 
@@ -247,7 +244,7 @@ func (a *ib) getAccountProfitAndLoss() (*AccountPnLResponse, error) {
 //=============================================================================
 
 func (a *ib) tickle() (*TickleResponse, error) {
-	apiUrl := a.params.ApiUrl +"/v1/api/tickle"
+	apiUrl := a.configParams.ApiUrl +"/v1/api/tickle"
 	var res TickleResponse
 	err := a.doPost(apiUrl, "{}", &res)
 

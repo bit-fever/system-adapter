@@ -216,6 +216,7 @@ func dumpHeader(header *http.Header, message string) string {
 		sb.WriteString("\n")
 	}
 
+	print(sb.String())
 	return sb.String()
 }
 

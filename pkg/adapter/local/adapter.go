@@ -31,14 +31,16 @@ import (
 
 //=============================================================================
 
-var params []*adapter.Param
+var configParams  []*adapter.ParamDef
+var connectParams []*adapter.ParamDef
 
 //-----------------------------------------------------------------------------
 
 var info = adapter.Info{
 	Code                : "LOCAL",
 	Name                : "Local system",
-	Params              : params,
+	ConfigParams        : configParams,
+	ConnectParams       : connectParams,
 	SupportsData        : true,
 	SupportsBroker      : true,
 	SupportsMultipleData: true,
@@ -70,15 +72,15 @@ func (a *local) GetAuthUrl() string {
 
 //=============================================================================
 
-func (a *local) Clone(config map[string]any) adapter.Adapter {
+func (a *local) Clone(configParams map[string]any, connectParams map[string]any) adapter.Adapter {
 	b := *a
 	return &b
 }
 
 //=============================================================================
 
-func (a *local) Connect(ctx *adapter.ConnectionContext) *adapter.ConnectionResult {
-	return nil
+func (a *local) Connect(ctx *adapter.ConnectionContext) (adapter.ConnectionResult,error) {
+	return adapter.ConnectionResultConnected,nil
 }
 
 //=============================================================================

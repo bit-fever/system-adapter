@@ -37,7 +37,7 @@ const ParamNoAuth  = "noAuth"
 
 //=============================================================================
 
-var params = []*adapter.Param{
+var configParams = []*adapter.ParamDef {
 	{
 		Name     : ParamAuthUrl,
 		Type     : adapter.ParamTypeString,
@@ -66,13 +66,17 @@ var params = []*adapter.Param{
 		GroupName: "",
 	},
 }
+//-----------------------------------------------------------------------------
+
+var connectParams []*adapter.ParamDef
 
 //-----------------------------------------------------------------------------
 
 var info = adapter.Info{
 	Code                : "IBKR",
 	Name                : "Interactive Brokers",
-	Params              : params,
+	ConfigParams        : configParams,
+	ConnectParams       : connectParams,
 	SupportsData        : true,
 	SupportsBroker      : true,
 	SupportsMultipleData: false,
@@ -90,7 +94,7 @@ type Params struct {
 //=============================================================================
 
 type ib struct {
-	params *Params
+	configParams *Params
 	client *http.Client
 	header *http.Header
 }
