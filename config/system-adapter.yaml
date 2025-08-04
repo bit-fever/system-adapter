@@ -4,3 +4,7 @@ application:
   debug: false
 authentication:
   authority: https://bitfever-server:8443/auth/realms/bitfever
+messaging:
+  address: localhost:8450
+  username: rabbit-admin
+  password: rabbit.admin

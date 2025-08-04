@@ -1,6 +1,6 @@
 //=============================================================================
 /*
-Copyright © 2023 Andrea Carboni andrea.carboni71@gmail.com
+Copyright © 2025 Andrea Carboni andrea.carboni71@gmail.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,41 +22,64 @@ THE SOFTWARE.
 */
 //=============================================================================
 
-package main
+package tokenrefresh
 
 import (
-	"github.com/bit-fever/core/boot"
 	"github.com/bit-fever/core/msg"
-	"github.com/bit-fever/core/req"
+	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"github.com/bit-fever/system-adapter/pkg/app"
-	"github.com/bit-fever/system-adapter/pkg/process"
-	"github.com/bit-fever/system-adapter/pkg/service"
+	"github.com/bit-fever/system-adapter/pkg/business"
 	"log/slog"
+	"time"
 )
 
 //=============================================================================
 
-const component = "system-adapter"
+func InitRefresh(cfg *app.Config) *time.Ticker {
+	ticker := time.NewTicker(10 * time.Second)
 
-//=============================================================================
+	go func() {
+		time.Sleep(10 * time.Second)
+		run()
 
-func main() {
-	cfg := &app.Config{}
-	boot.ReadConfig(component, cfg)
-	logger := boot.InitLogger(component, &cfg.Application)
-	engine := boot.InitEngine(logger,    &cfg.Application)
-	initClients()
-	msg.InitMessaging(&cfg.Messaging)
-	service.Init(engine, cfg, logger)
-	process.Init(cfg)
-	boot.RunHttpServer(engine, &cfg.Application)
+		for range ticker.C {
+			run()
+		}
+	}()
+
+	return ticker
 }
 
 //=============================================================================
 
-func initClients() {
-	slog.Info("Initializing clients...")
-	req.AddClient("bf", "ca.crt", "server.crt", "server.key")
+func run() {
+	list := business.GetConnectionsToRefresh()
+
+	for _, ctx := range list {
+		err := ctx.RefreshToken()
+		if err != nil {
+			slog.Error("TokenRefresher: Cannot refresh token. Disconnecting", "username", ctx.Username, "connection", ctx.ConnectionCode, "error", err.Error())
+			err = sendConnectionChangeMessage(ctx)
+			if err != nil {
+				slog.Error("TokenRefresher:  Could not publish the disconnection message (!)", "username", ctx.Username, "connection", ctx.ConnectionCode, "error", err.Error())
+			}
+		} else {
+			slog.Info("TokenRefresher: Refreshed token complete", "username", ctx.Username, "connection", ctx.ConnectionCode)
+		}
+	}
+}
+
+//=============================================================================
+
+func sendConnectionChangeMessage(ctx *adapter.ConnectionContext) error {
+	ccm := business.ConnectionChangeSystemMessage{
+		Username      : ctx.Username,
+		ConnectionCode: ctx.ConnectionCode,
+		SystemCode    : ctx.GetAdapterInfo().Code,
+		Status        : ctx.GetStatus(),
+	}
+
+	return msg.SendMessage(msg.ExSystem, msg.SourceConnection, msg.TypeChange, &ccm)
 }
 
 //=============================================================================

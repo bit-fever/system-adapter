@@ -39,11 +39,21 @@ func Init(router *gin.Engine, cfg *app.Config, logger *slog.Logger) {
 
 	ctrl := auth.NewOidcController(cfg.Authentication.Authority, req.GetClient("bf"), logger, cfg)
 
-	router.GET   ("/api/system/v1/adapters",                  ctrl.Secure(getAdapters,    roles.Admin_User))
-	router.GET   ("/api/system/v1/adapters/:code",            ctrl.Secure(getAdapter,     roles.Admin_User))
-	router.GET   ("/api/system/v1/connections",               ctrl.Secure(getConnections, roles.Admin_User))
-	router.PUT   ("/api/system/v1/connections/:code",         ctrl.Secure(connect,        roles.Admin_User))
-	router.DELETE("/api/system/v1/connections/:code",         ctrl.Secure(disconnect,     roles.Admin_User))
+	router.GET   ("/api/system/v1/adapters",                   ctrl.Secure(getAdapters,    roles.Admin_User))
+	router.GET   ("/api/system/v1/adapters/:code",             ctrl.Secure(getAdapter,     roles.Admin_User))
+	router.GET   ("/api/system/v1/connections",                ctrl.Secure(getConnections, roles.Admin_User))
+	router.PUT   ("/api/system/v1/connections/:code",          ctrl.Secure(connect,        roles.Admin_User))
+	router.DELETE("/api/system/v1/connections/:code",          ctrl.Secure(disconnect,     roles.Admin_User))
+
+	//--- Adapter services
+
+	router.GET   ("/api/system/v1/connections/:code/roots",                    ctrl.Secure(getRoots,       roles.Admin_User))
+	router.GET   ("/api/system/v1/connections/:code/roots/:root/instruments",  ctrl.Secure(getInstruments, roles.Admin_User))
+	router.GET   ("/api/system/v1/connections/:code/prices",                   ctrl.Secure(getPrices,      roles.Admin_User))
+	router.GET   ("/api/system/v1/connections/:code/accounts",                 ctrl.Secure(getAccounts,    roles.Admin_User))
+	router.GET   ("/api/system/v1/connections/:code/orders",                   ctrl.Secure(getOrders,      roles.Admin_User))
+	router.GET   ("/api/system/v1/connections/:code/positions",                ctrl.Secure(getPositions,   roles.Admin_User))
+	router.POST  ("/api/system/v1/connections/:code/test",                     ctrl.Secure(testAdapter,    roles.Admin_User))
 
 	//TODO: To review
 	//router.GET   ("/api/system/v1/connections/:code/login",   webLogin)

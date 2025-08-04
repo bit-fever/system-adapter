@@ -46,8 +46,8 @@ var userConnections = struct {
 //=============================================================================
 
 func GetConnections(c *auth.Context, filter map[string]any, offset int, limit int) *[]*ConnectionInfo {
-	userConnections.Lock()
-	defer userConnections.Unlock()
+	userConnections.RLock()
+	defer userConnections.RUnlock()
 
 	us := c.Session
 	uc,found := userConnections.m[us.Username]
@@ -59,8 +59,8 @@ func GetConnections(c *auth.Context, filter map[string]any, offset int, limit in
 			ci := ConnectionInfo{
 				Username      : ctx.Username,
 				ConnectionCode: ctx.ConnectionCode,
-				SystemCode    : ctx.Adapter.GetInfo().Code,
-				SystemName    : ctx.Adapter.GetInfo().Name,
+				SystemCode    : ctx.GetAdapterInfo().Code,
+				SystemName    : ctx.GetAdapterInfo().Name,
 			}
 			list = append(list, &ci)
 		}
@@ -71,9 +71,28 @@ func GetConnections(c *auth.Context, filter map[string]any, offset int, limit in
 
 //=============================================================================
 
+func GetConnectionsToRefresh() []*adapter.ConnectionContext {
+	userConnections.RLock()
+	defer userConnections.RUnlock()
+
+	var list []*adapter.ConnectionContext
+
+	for _,uc := range userConnections.m {
+		for _, ctx := range uc.contexts {
+			if ctx.NeedsRefresh() {
+				list = append(list, ctx)
+			}
+		}
+	}
+
+	return list
+}
+
+//=============================================================================
+
 func GetConnectionContextByInstanceCode(instanceCode string) *adapter.ConnectionContext {
-	userConnections.Lock()
-	defer userConnections.Unlock()
+	userConnections.RLock()
+	defer userConnections.RUnlock()
 
 	//TODO
 	//for _,uc := range userConnections.m {
@@ -90,10 +109,10 @@ func GetConnectionContextByInstanceCode(instanceCode string) *adapter.Connection
 //=============================================================================
 
 func Connect(c *auth.Context, connectionCode string, cs *ConnectionSpec) (*ConnectionResult, error) {
-	user := c.Session.Username
-
 	userConnections.Lock()
 	defer userConnections.Unlock()
+
+	user := c.Session.Username
 	uc,found := userConnections.m[user]
 
 	//--- Add entry if it is the first time
@@ -105,14 +124,14 @@ func Connect(c *auth.Context, connectionCode string, cs *ConnectionSpec) (*Conne
 
 	ctx,found := uc.contexts[connectionCode]
 	if found {
-		if ctx.Status == adapter.ContextStatusConnected {
+		if ctx.IsConnected() {
 			return &ConnectionResult{
 				Status : ConnectionStatusConnected,
 				Message: "Already connected",
 			}, nil
 		}
 
-		if ctx.Status == adapter.ContextStatusConnecting {
+		if ctx.IsConnecting() {
 			return &ConnectionResult{
 				Status : ConnectionStatusConnecting,
 				Message: "Still connecting",
@@ -125,22 +144,13 @@ func Connect(c *auth.Context, connectionCode string, cs *ConnectionSpec) (*Conne
 		return nil, req.NewNotFoundError("System not found: %v", cs.SystemCode)
 	}
 
-	err := validateParameters(ad.GetInfo().ConfigParams, cs.ConfigParams)
+	var err error
+	ctx,err = adapter.NewConnectionContext(c.Session.Username, connectionCode, c.Gin.Request.Host, ad, cs.ConfigParams, cs.ConnectParams)
 	if err != nil {
-		return nil, err
-	}
-
-	err = validateParameters(ad.GetInfo().ConnectParams, cs.ConnectParams)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx = &adapter.ConnectionContext{
-		ConnectionCode: connectionCode,
-		Username      : c.Session.Username,
-		Host          : c.Gin.Request.Host,
-		Adapter       : ad.Clone(cs.ConfigParams, cs.ConnectParams),
-		Status        : adapter.ContextStatusDisconnected,
+		return &ConnectionResult{
+			Status : ConnectionStatusError,
+			Message: err.Error(),
+		}, nil
 	}
 
 	//--- It is better to store again the context even if it is already there: the user could use the
@@ -150,33 +160,30 @@ func Connect(c *auth.Context, connectionCode string, cs *ConnectionSpec) (*Conne
 
 	res := &ConnectionResult{
 		Status : ConnectionStatusError,
-		Message: err.Error(),
 		Action: ConnectionActionNone,
 	}
 
-	cr,err := ctx.Adapter.Connect(ctx)
+	cr,err := ctx.Connect()
 	if err != nil {
+		res.Message = err.Error()
 		return res,nil
 	}
 
 	err = sendConnectionChangeMessage(c, ctx)
 	if err != nil {
 		return &ConnectionResult{
-			Status : ConnectionStatusError,
 			Message: err.Error(),
-			Action: ConnectionActionNone,
 		}, nil
 	}
 
 	switch cr {
 		case adapter.ConnectionResultConnected:
 			res.Status = ConnectionStatusConnected
-			res.Action = ConnectionActionNone
 
 		case adapter.ConnectionResultOpenUrl:
-			res.Status = ConnectionStatusConnecting
-			res.Action = ConnectionActionOpenUrl
-			res.Message = ctx.Adapter.GetAuthUrl()
+			res.Status  = ConnectionStatusConnecting
+			res.Action  = ConnectionActionOpenUrl
+			res.Message = ctx.GetAdapterAuthUrl()
 
 		//TODO: to review: hardcoded url
 		case adapter.ConnectionResultProxyUrl:
@@ -206,7 +213,7 @@ func Disconnect(c *auth.Context, connectionCode string) error {
 		return req.NewNotFoundError("Connection not found: %v", connectionCode)
 	}
 
-	if ctx.Status == adapter.ContextStatusDisconnected {
+	if ctx.IsDisconnected() {
 		return nil
 	}
 
@@ -215,11 +222,86 @@ func Disconnect(c *auth.Context, connectionCode string) error {
 		return req.NewServerErrorByError(err)
 	}
 
-	_ = ctx.Adapter.Disconnect(ctx)
-	ctx.Status = adapter.ContextStatusDisconnected
-	ctx.Host   = ""
+	delete(uc.contexts, connectionCode)
+	_ = ctx.Disconnect()
 
 	return nil
+}
+
+//=============================================================================
+//===
+//=== Services
+//===
+//=============================================================================
+
+func GetRoots(c *auth.Context, connectionCode string, filter string) ([]*adapter.RootSymbol, error){
+	ctx,err := getConnectionContext(c, connectionCode)
+	if err != nil {
+		return nil,err
+	}
+
+	return ctx.GetRoots(filter)
+}
+
+//=============================================================================
+
+func GetInstruments(c *auth.Context, connectionCode string, root string) ([]*adapter.Instrument, error){
+	ctx,err := getConnectionContext(c, connectionCode)
+	if err != nil {
+		return nil,err
+	}
+
+	return ctx.GetInstruments(root)
+}
+
+//=============================================================================
+
+func GetPrices(c *auth.Context, connectionCode string) (any, error){
+	return nil,nil
+}
+
+//=============================================================================
+
+func GetAccounts(c *auth.Context, connectionCode string) ([]*adapter.Account, error){
+	ctx,err := getConnectionContext(c, connectionCode)
+	if err != nil {
+		return nil,err
+	}
+
+	return ctx.GetAccounts()
+}
+
+//=============================================================================
+
+func GetOrders(c *auth.Context, connectionCode string) (any, error){
+	return nil,nil
+}
+
+//=============================================================================
+
+func GetPositions(c *auth.Context, connectionCode string) (any, error){
+	return nil,nil
+}
+
+//=============================================================================
+
+func TestAdapter(c *auth.Context, connectionCode string, tar *TestAdapterRequest) (string, error){
+	userConnections.RLock()
+
+	user := c.Session.Username
+	uc, ok := userConnections.m[user]
+	if !ok {
+		userConnections.RUnlock()
+		return "",req.NewNotFoundError("Connection not found for user: %v", user)
+	}
+
+	ctx, found := uc.contexts[connectionCode]
+	userConnections.RUnlock()
+	if !found {
+		return "",req.NewNotFoundError("Connection not found: %v", connectionCode)
+	}
+
+	return ctx.TestAdapter(tar.Service, tar.Query)
 }
 
 //=============================================================================
@@ -228,25 +310,12 @@ func Disconnect(c *auth.Context, connectionCode string) error {
 //===
 //=============================================================================
 
-func validateParameters(params []*adapter.ParamDef, values map[string]any) error {
-	for _, p := range params {
-		err := p.Validate(values)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-//=============================================================================
-
 func sendConnectionChangeMessage(c *auth.Context, ctx *adapter.ConnectionContext) error {
 	ccm := ConnectionChangeSystemMessage{
 		Username      : ctx.Username,
 		ConnectionCode: ctx.ConnectionCode,
-		SystemCode    : ctx.Adapter.GetInfo().Code,
-		Status        : ctx.Status,
+		SystemCode    : ctx.GetAdapterInfo().Code,
+		Status        : ctx.GetStatus(),
 	}
 	err := msg.SendMessage(msg.ExSystem, msg.SourceConnection, msg.TypeChange, &ccm)
 
@@ -256,6 +325,27 @@ func sendConnectionChangeMessage(c *auth.Context, ctx *adapter.ConnectionContext
 	}
 
 	return nil
+}
+
+//=============================================================================
+
+func getConnectionContext(c *auth.Context, connectionCode string) (*adapter.ConnectionContext, error) {
+	userConnections.RLock()
+
+	user := c.Session.Username
+	uc, ok := userConnections.m[user]
+	if !ok {
+		userConnections.RUnlock()
+		return nil,req.NewNotFoundError("Connection not found for user: %v", user)
+	}
+
+	ctx, found := uc.contexts[connectionCode]
+	userConnections.RUnlock()
+	if !found {
+		return nil,req.NewNotFoundError("Connection not found: %v", connectionCode)
+	}
+
+	return ctx,nil
 }
 
 //=============================================================================

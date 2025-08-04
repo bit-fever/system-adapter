@@ -121,6 +121,64 @@ func (a *ib) InitFromWebLogin(reqHeader *http.Header, resCookies []*http.Cookie)
 }
 
 //=============================================================================
+
+func (a *ib) GetTokenExpSeconds() int {
+	return 0;
+}
+
+//=============================================================================
+
+func (a *ib) RefreshToken() error {
+	return nil
+}
+
+//=============================================================================
+//===
+//=== Services
+//===
+//=============================================================================
+
+func (a *ib) GetRoots(filter string) ([]*adapter.RootSymbol,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *ib) GetInstruments(root string) ([]*adapter.Instrument,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *ib) GetPrices() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *ib) GetAccounts() ([]*adapter.Account,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *ib) GetOrders() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *ib) GetPositions() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *ib) TestService(path,param string) (string,error) {
+	return "", nil
+}
+
+//=============================================================================
 //===
 //=== Private functions
 //===

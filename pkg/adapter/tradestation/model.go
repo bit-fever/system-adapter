@@ -40,8 +40,8 @@ const (
 //=============================================================================
 
 const (
-	LiveAPI = "https://api.tradestation.com/v3"
-	DemoAPI = "https://sim-api.tradestation.com/v3"
+	LiveAPI = "https://api.tradestation.com"
+	DemoAPI = "https://sim-api.tradestation.com"
 
 	LoginPageUrl       = "https://my.tradestation.com/api/auth/login?returnTo=%2F"
 	LoginPostUrl       = "https://signin.tradestation.com/usernamepassword/login"
@@ -49,7 +49,7 @@ const (
 	LoginTwoFAUrl      = "https://signin.tradestation.com/u/mfa-otp-challenge"
 	LoginTwoFAPath     = "/u/mfa-otp-challenge"
 	LoginDashboardPath = "/dashboard"
-	AuthorizeUrl       = "https://signin.tradestation.com/authorize"
+	RefreshTokenUrl    = "https://my.tradestation.com/api/auth/token"
 )
 
 //=============================================================================

@@ -27,16 +27,18 @@ package tradestation
 import (
 	"bytes"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
-	"golang.org/x/net/html"
+	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -109,9 +111,6 @@ func (a *tradestation) Connect(ctx *adapter.ConnectionContext) (adapter.Connecti
 		a.apiUrl = LiveAPI
 	}
 
-	a.header.Set("Authorization", "Bearer "+ a.accessToken)
-	a.header.Set("Content-Type", "application/json")
-
 	//--- Test tokens & accounts
 	err = a.testToken()
 	if err != nil {
@@ -139,233 +138,219 @@ func (a *tradestation) InitFromWebLogin(reqHeader *http.Header, resCookies []*ht
 }
 
 //=============================================================================
+
+func (a *tradestation) GetTokenExpSeconds() int {
+	return 20*60;
+}
+
+//=============================================================================
+
+func (a *tradestation) RefreshToken() error {
+	payload := bytes.NewBufferString("")
+
+	rq, err := http.NewRequest("POST", RefreshTokenUrl, payload)
+	if err != nil {
+		return err
+	}
+
+	setupCommonHeader(&rq.Header)
+	rq.Header.Set("Accept",         "*/*")
+	rq.Header.Set("Origin",         "https://my.tradestation.com")
+	rq.Header.Set("Sec-Fetch-Dest", "empty")
+	rq.Header.Set("Sec-Fetch-Mode", "cors")
+	rq.Header.Set("Sec-Fetch-Site", "same-origin")
+
+	res, err := a.client.Do(rq)
+
+	defer res.Body.Close()
+
+	var out TokenRefreshResponse
+	err = req.BuildResponse(res, err, &out)
+
+	if err == nil {
+		a.accessToken = out.AccessToken
+//		a.accessToken = res.Header.Get("X-Authorization")
+	}
+
+	return err
+}
+
+//=============================================================================
+//===
+//=== Services
+//===
+//=============================================================================
+
+func (a *tradestation) GetRoots(filter string) ([]*adapter.RootSymbol,error) {
+	//--- Category=FU   (Category=Futures)
+	//--- $top=1000     (returns first 1000 results)
+
+	apiUrl := a.apiUrl + UrlSymbolsSuggest +"/"+ filter +"?$filter=Category%20eq%20%27FU%27&$top=1000"
+
+	var res []RootFound
+	err := a.doGet(apiUrl, &res)
+	if err != nil {
+		return nil, err
+	}
+
+	var rootsMap = make(map[string]*adapter.RootSymbol)
+
+	for _,rf := range res {
+		r,ok := rootsMap[rf.Root]
+		if !ok {
+			r = &adapter.RootSymbol{
+				Code      : rf.Root,
+				Instrument: rf.Description,
+				Country   : rf.Country,
+				Currency  : rf.Currency,
+				Exchange  : rf.Exchange,
+				PointValue: rf.PointValue,
+			}
+
+			rootsMap[r.Code] = r
+		}
+	}
+
+	return slices.Collect(maps.Values(rootsMap)), nil
+}
+
+//=============================================================================
+
+func (a *tradestation) GetInstruments(root string) ([]*adapter.Instrument,error) {
+	//--- C=FU     (Category=Futures)
+	//--- Exp=true (shows all synbols, expired or not)
+	//--- R=xxx    (root symbol)
+
+	apiUrl := a.apiUrl + UrlSymbolsSearch +"/C=FU&Exp=true&R="+root
+
+	var res []SymbolFound
+	err := a.doGet(apiUrl, &res)
+	if err != nil {
+		return nil, err
+	}
+
+	var instruments []*adapter.Instrument
+
+	for _,sf := range res {
+		if sf.Category == "Future" {
+			expDate,err := convertExpirationDate(sf.ExpirationDate)
+			if err != nil {
+				return nil,err
+			}
+
+			i := adapter.Instrument{
+				Name          : sf.Name,
+				Description   : sf.Description,
+				Exchange      : sf.Exchange,
+				Country       : sf.Country,
+				Root          : sf.Root,
+				ExpirationDate: expDate,
+				PointValue    : sf.PointValue,
+				MinMove       : sf.MinMove,
+				Continuous    : sf.Name[0:1]=="@",
+			}
+
+			instruments = append(instruments,&i)
+		}
+	}
+
+	return instruments, nil
+}
+
+//=============================================================================
+
+func (a *tradestation) GetPrices() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *tradestation) GetAccounts() ([]*adapter.Account,error) {
+	apiUrl := a.apiUrl + UrlBrokerageAccounts
+
+	var res AccountsResponse
+	err := a.doGet(apiUrl, &res)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := convertAccounts(&res)
+
+	for _,acc := range accounts {
+		apiUrl = a.apiUrl + UrlBrokerageAccounts +"/"+ acc.Code +"/balances"
+		var bres BalancesResponse
+		err = a.doGet(apiUrl, &bres)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(bres.Balances) != 1 {
+			return nil, errors.New(fmt.Sprintf("Incorrect number of balances returned: %d",len(bres.Balances)))
+		}
+
+		b := bres.Balances[0]
+		acc.CashBalance          = toFloat64(b.CashBalance)
+		acc.Equity               = toFloat64(b.Equity)
+		acc.RealizedProfitLoss   = toFloat64(b.BalanceDetail.RealizedProfitLoss)
+		acc.UnrealizedProfitLoss = toFloat64(b.BalanceDetail.UnrealizedProfitLoss)
+		acc.OpenOrderMargin      = toFloat64(b.BalanceDetail.OpenOrderMargin)
+		acc.InitialMargin        = toFloat64(b.BalanceDetail.InitialMargin)
+		acc.MaintenanceMargin    = toFloat64(b.BalanceDetail.MaintenanceMargin)
+	}
+
+	return accounts,nil
+}
+
+//=============================================================================
+
+func (a *tradestation) GetOrders() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *tradestation) GetPositions() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *tradestation) TestService(path,param string) (string,error) {
+	slog.Info("TestService: Testing service", "path", path, "param", param)
+	url := a.apiUrl + path
+	if param != "" {
+		url = url + "?" + param
+	}
+
+	rq, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		slog.Error("Error creating a GET request", "error", err.Error())
+		return "",err
+	}
+
+	rq.Header.Set("Authorization", "Bearer "+ a.accessToken)
+	rq.Header.Set("Content-Type", "application/json")
+
+	res, err := a.client.Do(rq)
+	if err != nil {
+		return "",err
+	}
+
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		slog.Error("TestService: Error reading response", "path", path, "param", param, "error", err.Error())
+		return "",err
+	}
+
+	return string(body), nil
+}
+
+//=============================================================================
 //===
 //=== Private functions
 //===
-//=============================================================================
-
-func retrieveConfigParams(values map[string]any) *ConfigParams {
-	return &ConfigParams{
-		ClientId    : values[ParamClientId]   .(string),
-		LiveAccount : values[ParamLiveAccount].(bool),
-	}
-}
-
-//=============================================================================
-
-func retrieveConnectParams(values map[string]any) *ConnectParams {
-	return &ConnectParams{
-		Username  : values[adapter.ParamUsername] .(string),
-		Password  : values[adapter.ParamPassword] .(string),
-		TwoFACode : values[adapter.ParamTwoFACode].(string),
-	}
-}
-
-//=============================================================================
-
-func (a *tradestation) createLoginInfo() (*LoginInfo, error){
-	rq, err := http.NewRequest("GET", LoginPageUrl, nil)
-
-	if err != nil {
-		slog.Error("createLoginInfo: Error creating a GET request", "error", err.Error())
-		return nil, err
-	}
-
-	//--- Let's try to replicate a basic header sent by Chrome
-	//--- If we don't do that. Tradestation will redirect to wwww.tradestation.com
-
-	h := http.Header{}
-	setupCommonHeader(&h)
-	h.Add("Accept",            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
-	h.Add("Priority",          "u=0, i")
-	h.Add("Sec-Fetch-Dest",    "document")
-	h.Add("Sec-Fetch-Mode",    "navigate")
-	h.Add("Sec-Fetch-Site",    "none")
-	h.Add("Sec-Fetch-User",    "?1")
-	h.Add("Upgrade-Insecure-Requests","1")
-	rq.Header = h
-
-	res, err := a.client.Do(rq)
-
-	defer res.Body.Close()
-	doc, err := html.Parse(res.Body)
-	if err != nil {
-		slog.Error("createLoginInfo: Error reading from body", "error", err.Error())
-		return nil, err
-	}
-
-	scripts       := extractScripts(doc, nil)
-	encodedConfig := extractEncodedConfig(scripts)
-
-	if encodedConfig == "" {
-		return nil, errors.New("Can't extract config from node")
-	}
-
-	bytes, err := base64.StdEncoding.DecodeString(encodedConfig)
-	if err != nil {
-		return nil, errors.New("Can't decode config from base64 : "+encodedConfig)
-	}
-
-	var authConfig Auth0Config
-	err = json.Unmarshal(bytes, &authConfig)
-	if err != nil {
-		slog.Error("Bad JSON response from server", "error", err.Error())
-		return nil,err
-	}
-
-	//--- The original GET request gets many refirects. We setup some common headers for later use
-	h = res.Header
-	setupCommonHeader(&h)
-	a.header = &h
-
-	q := res.Request.URL.Query()
-
-	return &LoginInfo{
-		State              : q.Get("state"),
-		Client             : q.Get("client"),
-		Protocol           : q.Get("protocol"),
-		Scope              : q.Get("scope"),
-		ResponseType       : q.Get("response_type"),
-		RedirectUri        : q.Get("redirect_uri"),
-		Audience           : q.Get("audience"),
-		Nonce              : q.Get("nonce"),
-		CodeChallengeMethod: q.Get("code_challenge_method"),
-		CodeChallenge      : q.Get("code_challenge"),
-		Auth0Config        : &authConfig,
-	}, nil
-}
-
-//=============================================================================
-
-func (a *tradestation) login(info *LoginInfo) (*LoginResult, error) {
-	lr := LoginRequest{
-		Audience    : info.Audience,
-		ClientId    : info.Client,
-		Connection  : "auth0-api-connection",
-		Nonce       : info.Nonce,
-		Password    : a.connectParams.Password,
-		RedirectUri : info.RedirectUri,
-		ResponseType: info.ResponseType,
-		Scope       : info.Scope,
-		State       : info.State,
-		Tenant      : info.Auth0Config.Auth0Tenant,
-		Username    : a.connectParams.Username,
-		Csrf        : info.Auth0Config.InternalOptions.Csrf,
-		IntState    : info.Auth0Config.InternalOptions.Intstate,
-	}
-
-	body, err := json.Marshal(&lr)
-	if err != nil {
-		slog.Error("login: Error marshalling POST parameter", "error", err.Error())
-		return nil,err
-	}
-
-	reader := bytes.NewReader(body)
-
-	rq, err := http.NewRequest("POST", LoginPostUrl, reader)
-	if err != nil {
-		slog.Error("login: Error creating a POST request", "error", err.Error())
-		return nil,err
-	}
-
-	rq.Header = *a.header
-	setupHeader(&rq.Header)
-	res, err := a.client.Do(rq)
-
-	defer res.Body.Close()
-	doc, err := html.Parse(res.Body)
-	if err != nil {
-		slog.Error("login: Error reading from body", "error", err.Error())
-		return nil,err
-	}
-
-	lres := LoginResult{}
-	extractLoginResult(doc, &lres)
-	if lres.Wa == "" {
-		slog.Error("login: Can't login to Tradestation", "result", toString(doc))
-		return nil,errors.New("Can't login to Tradestation")
-	}
-
-	return &lres, nil
-}
-
-//=============================================================================
-
-func (a *tradestation) callCallback(lr *LoginResult) (string,error) {
-	var params = url.Values{}
-	params.Set("wa"     , lr.Wa)
-	params.Set("wresult", lr.Wresult)
-	params.Set("wctx"   , lr.Wctx)
-	payload := bytes.NewBufferString(params.Encode())
-
-	rq, err := http.NewRequest("POST", LoginCallbackUrl, payload)
-	if err != nil {
-		slog.Error("callCallback: Error creating a POST request", "error", err.Error())
-		return "",err
-	}
-
-	rq.Header = *a.header
-	setupHeader(&rq.Header)
-	rq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	res, err := a.client.Do(rq)
-
-	defer res.Body.Close()
-	doc, err := html.Parse(res.Body)
-	if err != nil {
-		slog.Error("callCallback: Error reading from body", "error", err.Error())
-		return "",err
-	}
-
-	if res.Request.URL.Path != LoginTwoFAPath {
-		slog.Error("callCallback: Didn't get the 2FA page", "result", toString(doc))
-		return "",errors.New("Didn't get the 2FA page")
-	}
-
-	newState := res.Request.URL.Query().Get("state")
-	return newState,nil
-}
-
-//=============================================================================
-
-func (a *tradestation) submitTwoFACode(state string) error {
-	var params = url.Values{}
-	params.Set("state" , state)
-	params.Set("code"  , a.connectParams.TwoFACode)
-	params.Set("action", "default")
-	payload := bytes.NewBufferString(params.Encode())
-
-	rq, err := http.NewRequest("POST", LoginTwoFAUrl+"?state="+state, payload)
-	if err != nil {
-		slog.Error("submitTwoFACode: Error creating a POST request", "error", err.Error())
-		return err
-	}
-
-	rq.Header = *a.header
-	setupCommonHeader(&rq.Header)
-	rq.Header.Set("Accept",       "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
-	rq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	res, err := a.client.Do(rq)
-
-	defer res.Body.Close()
-	doc, err := html.Parse(res.Body)
-	if err != nil {
-		slog.Error("submitTwoFACode: Error reading from body", "error", err.Error())
-		return err
-	}
-
-	if res.Request.URL.Path != LoginDashboardPath {
-		slog.Error("submitTwoFACode: Didn't get the dashboard path", "result", toString(doc))
-		return errors.New("Didn't get the dashboard page")
-	}
-
-	a.accessToken  = res.Header.Get("X-Authorization")
-	a.refreshToken = res.Header.Get("X-Id-Token")
-
-	return nil
-}
-
 //=============================================================================
 
 func (a *tradestation) doGet(url string, output any) error {
@@ -375,7 +360,8 @@ func (a *tradestation) doGet(url string, output any) error {
 		return err
 	}
 
-	rq.Header = *a.header
+	rq.Header.Set("Authorization", "Bearer "+ a.accessToken)
+	rq.Header.Set("Content-Type", "application/json")
 
 	res, err := a.client.Do(rq)
 	return req.BuildResponse(res, err, &output)
@@ -398,250 +384,66 @@ func (a *tradestation) doPost(url string, params any, output any) error {
 		return err
 	}
 
-	rq.Header = *a.header
-	setupHeader(&rq.Header)
-	res, err := a.client.Do(rq)
+	rq.Header.Set("Authorization", "Bearer "+ a.accessToken)
+	rq.Header.Set("Content-Type", "application/json")
 
+	res, err := a.client.Do(rq)
 	return req.BuildResponse(res, err, &output)
 }
 
 //=============================================================================
 
-func extractScripts(node *html.Node, list []*html.Node) []*html.Node {
-	if node.Type == html.ElementNode && node.Data == "script" {
-		return append(list, node)
-	} else {
-		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			subList := extractScripts(c, nil)
-			list = append(list, subList...)
-		}
+func convertAccounts(ar *AccountsResponse) []*adapter.Account {
+	var list []*adapter.Account
 
-		return list
-	}
-}
-
-//=============================================================================
-
-func extractEncodedConfig(scripts []*html.Node) string {
-	for _, node := range scripts {
-		if node.Attr == nil {
-			text := node.FirstChild.Data
-			idx  := strings.Index(text, "'")
-			size := len(text)
-			return text[idx+1 : size-6]
-		}
-	}
-
-	return ""
-}
-
-//=============================================================================
-
-func extractLoginResult(node *html.Node, lr *LoginResult) {
-	if node.Type == html.ElementNode && node.Data == "input" {
-		extractLoginResultAttribute(node, lr)
-	} else {
-		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			extractLoginResult(c, lr)
-		}
-	}
-}
-
-//=============================================================================
-
-func extractLoginResultAttribute(node *html.Node, lr *LoginResult) {
-	name  := getAttributeValue(node, "name")
-	value := getAttributeValue(node, "value")
-
-	switch name {
-		case "wa"     : lr.Wa      = value
-		case "wresult": lr.Wresult = value
-	    case "wctx"   : lr.Wctx    = value
-	}
-}
-
-//=============================================================================
-
-func getAttributeValue(node *html.Node, name string) string {
-	for _, a := range node.Attr {
-		if a.Key == name {
-			return a.Val
-		}
-	}
-
-	return ""
-}
-
-//=============================================================================
-
-func setupHeader(h *http.Header) {
-	h.Set("Accept",         "*/*")
-	h.Add("Priority",       "u=0, i")
-	h.Set("Origin",         "https://signin.tradestation.com")
-	h.Add("Sec-Fetch-Dest", "empty")
-	h.Add("Sec-Fetch-Mode", "cors")
-	h.Add("Sec-Fetch-Site", "same-origin")
-	h.Set("Content-Type",   "Application/json")
-	h.Set("Auth0-Client",   "eyJuYW1lIjoiYXV0aDAuanMtdWxwIiwidmVyc2lvbiI6IjkuMTYuNCJ9")
-}
-
-//=============================================================================
-
-func setupCommonHeader(h *http.Header) {
-	h.Add("Accept-Encoding",   "gzip, deflate, br, zstd")
-	h.Add("Accept-Language",   "en-US,en;q=0.9")
-	h.Add("Cache-Control",     "no-cache")
-	h.Add("Pragma",            "no-cache")
-	h.Add("Sec-Ch-Ua",         "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Google Chrome\";v=\"138\"")
-	h.Add("Sec-Ch-Ua-mobile",  "?0")
-	h.Add("Sec-Ch-Ua-platform","\"Linux\"")
-	h.Add("User-Agent",        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
-}
-
-//=============================================================================
-
-func toString(node *html.Node) string {
-	var b bytes.Buffer
-	err  := html.Render(&b, node)
-	if err != nil {
-		return err.Error()
-	}
-
-	return b.String()
-}
-
-//=============================================================================
-
-func (a *tradestation) testToken() error {
-	accounts,err := a.getAccounts()
-	if err != nil {
-		return err
-	}
-
-	if len(accounts.Accounts) == 0 {
-		return errors.New("No accounts found")
-	}
-
-	found := false
-
-	for _,acc := range accounts.Accounts {
+	for _,acc := range ar.Accounts {
 		if acc.AccountType == "Futures" && acc.Status == "Active" {
-			found = true
+			var aa adapter.Account
+			aa.Code         = acc.AccountID
+			aa.Type         = adapter.AccountTypeFutures
+			aa.CurrencyCode = acc.Currency
+
+			list = append(list, &aa)
 		}
 	}
 
-	if !found {
-		return errors.New("Futures account not found or not active")
+	return list
+}
+
+//=============================================================================
+
+func toFloat64(value string) float64 {
+	val, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		slog.Warn("Tradestation: Error converting value to float64", "value", value)
+		return 0
 	}
 
-	return nil
-}
-
-//=============================================================================
-//===
-//=== Tradestation services
-//===
-//=============================================================================
-
-//func (a *tradestation) ssoValidate() (*Validate, error) {
-//	apiUrl := a.params.ApiUrl +"/v1/api/sso/validate"
-//	var res Validate
-//	err := a.doGet(apiUrl, &res)
-//
-//	return &res, err
-//}
-
-//=============================================================================
-
-func (a *tradestation) getAccounts() (*AccountsResponse, error) {
-	apiUrl := a.apiUrl +"/brokerage/accounts"
-
-	var res AccountsResponse
-	err := a.doGet(apiUrl, &res)
-
-	return &res, err
+	return val
 }
 
 //=============================================================================
 
-type AccountsResponse struct {
-	Accounts []Account
-}
+func convertExpirationDate(date string) (*time.Time,error) {
+	fIdx := strings.Index(date, "(")
+	lIdx := strings.Index(date, ")")
 
-//=============================================================================
+	if fIdx == -1 || lIdx == -1 {
+		return nil,errors.New("Invalid expiration date : "+ date)
+	}
 
-type Account struct {
-	AccountID     string
-	Currency      string
-	Status        string
-	AccountType   string
-	AccountDetail AccountDetail
-}
+	date = date[fIdx+1 : lIdx]
+	ts,err := strconv.ParseInt(date, 10, 64)
+	if err != nil {
+		return nil,errors.New("Invalid expiration date : "+ date)
+	}
 
-//=============================================================================
+	if ts < 0 {
+		return nil,nil
+	}
 
-type AccountDetail struct {
-	IsStockLocateEligible      bool
-	EnrolledInRegTProgram      bool
-	RequiresBuyingPowerWarning bool
-	DayTradingQualified        bool
-	OptionApprovalLevel        int
-	PatternDayTrader           bool
-}
-
-//=============================================================================
-
-type LoginInfo struct {
-	State               string
-	Client              string
-	Protocol            string
-	Scope               string
-	ResponseType        string
-	RedirectUri         string
-	Audience            string
-	Nonce               string
-	CodeChallengeMethod string
-	CodeChallenge       string
-	Auth0Config         *Auth0Config
-}
-
-//=============================================================================
-
-type LoginRequest struct {
-	Audience     string `json:"audience"`
-	ClientId     string `json:"client_id"`
-	Connection   string `json:"connection"`
-	Nonce        string `json:"nonce"`
-	Password     string `json:"password"`
-	RedirectUri  string `json:"redirect_uri"`
-	ResponseType string `json:"response_type"`
-	Scope        string `json:"scope"`
-	State        string `json:"state"`
-	Tenant       string `json:"tenant"`
-	Username     string `json:"username"`
-	Csrf	     string `json:"_csrf"`
-	IntState     string `json:"_intstate"`
-}
-
-//=============================================================================
-
-type Auth0Config struct {
-	ClientId     string `json:"clientID"`
-	Auth0Domain  string `json:"auth0Domain"`
-	Auth0Tenant  string `json:"auth0Tenant"`
-	InternalOptions struct {
-		Protocol string `json:"protocol"`
-		Csrf     string `json:"_csrf"`
-		Intstate string `json:"_intstate"`
-	} `json:"internalOptions"`
-}
-
-//=============================================================================
-
-type LoginResult struct {
-	Wa      string `json:"wa"`
-	Wresult string `json:"wresult"`
-	Wctx    string `json:"wctx"`
+	res  := time.UnixMilli(ts)
+	return &res, nil
 }
 
 //=============================================================================

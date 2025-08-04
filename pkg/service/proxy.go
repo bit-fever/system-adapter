@@ -61,7 +61,7 @@ func proxyLoginRequests(c *gin.Context) {
 		return
 	}
 
-	authUrl := ctx.Adapter.GetAuthUrl()
+	authUrl := ctx.GetAdapterAuthUrl()
 	target, err := url.Parse(authUrl)
 	if err != nil {
 		req.ReturnError(c, req.NewBadRequestError("Bad authentication url : "+ authUrl))
@@ -112,15 +112,15 @@ func buildProxy(c *gin.Context, target *url.URL, forwardPath string, ctx *adapte
 		sb.WriteString("==============================================================\n")
 		slog.Info("Proxy response", "data", sb.String())
 
-		if ctx.Adapter.IsWebLoginCompleted(res.StatusCode, res.Request.URL.Path) {
-			err := ctx.Adapter.InitFromWebLogin(&res.Request.Header, res.Cookies())
+		if ctx.IsWebLoginCompleted(res.StatusCode, res.Request.URL.Path) {
+			err := ctx.InitFromWebLogin(&res.Request.Header, res.Cookies())
 			defer res.Body.Close()
 
 			message := htmlfy("Success", "This page can be closed")
 
 			if err != nil {
 				message = htmlfy("Authentication failed", "Cause: "+ err.Error())
-				slog.Error("Adapter authentication failed", "adapter", ctx.Adapter.GetInfo().Name, "error", err.Error())
+				slog.Error("Adapter authentication failed", "adapter", ctx.GetAdapterInfo().Name, "error", err.Error())
 			}
 
 			res.Body = io.NopCloser(bytes.NewReader([]byte(message)))

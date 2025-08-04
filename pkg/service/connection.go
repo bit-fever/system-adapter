@@ -91,7 +91,7 @@ func webLogin(c *gin.Context) {
 		return
 	}
 
-	authUrl := ctx.Adapter.GetAuthUrl()
+	authUrl := ctx.GetAdapterAuthUrl()
 	target, err := url.Parse(authUrl)
 	if err != nil {
 		req.ReturnError(c, req.NewBadRequestError("Bad authentication url : "+ authUrl))
@@ -103,6 +103,114 @@ func webLogin(c *gin.Context) {
 	location := target.Path
 	slog.Info("Redirecting initial request to : "+location)
 	c.Redirect(http.StatusFound, location)
+}
+
+//=============================================================================
+
+func getRoots(c *auth.Context) {
+	code   := c.GetCodeFromUrl()
+	filter := c.Gin.Query("filter")
+	if filter == "" {
+		c.ReturnError(req.NewBadRequestError("No filter provided"))
+	}
+
+	res, err := business.GetRoots(c, code, filter)
+	if err == nil {
+		_ = c.ReturnList(res, 0, 10000, len(res))
+		return
+	}
+
+	c.ReturnError(err)
+}
+
+//=============================================================================
+
+func getInstruments(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+	root := c.Gin.Param("root")
+
+	res, err := business.GetInstruments(c, code, root)
+	if err == nil {
+		_ = c.ReturnList(res, 0, 10000, len(res))
+		return
+	}
+
+	c.ReturnError(err)
+}
+
+//=============================================================================
+
+func getPrices(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+
+	res, err := business.GetPrices(c, code)
+	if err == nil {
+		_ = c.ReturnObject(res)
+		return
+	}
+
+	c.ReturnError(err)
+}
+
+//=============================================================================
+
+func getAccounts(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+
+	res, err := business.GetAccounts(c, code)
+	if err == nil {
+		_ = c.ReturnList(res, 0, 1000, len(res))
+		return
+	}
+
+	c.ReturnError(err)
+}
+
+//=============================================================================
+
+func getOrders(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+
+	res, err := business.GetOrders(c, code)
+	if err == nil {
+		_ = c.ReturnObject(res)
+		return
+	}
+
+	c.ReturnError(err)
+}
+
+//=============================================================================
+
+func getPositions(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+
+	res, err := business.GetPositions(c, code)
+	if err == nil {
+		_ = c.ReturnObject(res)
+		return
+	}
+
+	c.ReturnError(err)
+}
+
+//=============================================================================
+
+func testAdapter(c *auth.Context) {
+	code := c.GetCodeFromUrl()
+	tar  := business.TestAdapterRequest{}
+	err  := c.BindParamsFromBody(&tar)
+
+	if err == nil {
+		var res string
+		res, err = business.TestAdapter(c, code, &tar)
+		if err == nil {
+			_ = c.ReturnObject(res)
+			return
+		}
+	}
+
+	c.ReturnError(err)
 }
 
 //=============================================================================

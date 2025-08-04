@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"reflect"
 	"strconv"
+	"time"
 )
 
 //=============================================================================
@@ -156,34 +157,77 @@ const (
 //-----------------------------------------------------------------------------
 
 type Adapter interface {
-	GetInfo()    *Info
+	GetInfo() *Info
 	GetAuthUrl() string
-	Clone        (configParams map[string]any, connectParams map[string]any)  Adapter
-	Connect      (ctx *ConnectionContext) (ConnectionResult, error)
-	Disconnect   (ctx *ConnectionContext) error
-
+	Clone(configParams map[string]any, connectParams map[string]any)  Adapter
+	Connect(ctx *ConnectionContext) (ConnectionResult, error)
+	Disconnect(ctx *ConnectionContext) error
 	IsWebLoginCompleted(httpCode int, path string) bool
 	InitFromWebLogin(reqHeader *http.Header, resCookies []*http.Cookie) error
+	GetTokenExpSeconds() int
+	RefreshToken() error
+
+	//--- Services
+
+	GetRoots(filter string) ([]*RootSymbol,error)
+	GetInstruments(root string) ([]*Instrument,error)
+	GetPrices() (any,error)
+	GetAccounts() ([]*Account,error)
+	GetOrders() (any,error)
+	GetPositions() (any,error)
+	TestService(path,param string) (string,error)
 }
 
 //=============================================================================
+//===
+//=== API model
+//===
+//=============================================================================
 
-type ContextStatus int
-
+type AccountType int
 const (
-	ContextStatusDisconnected = 0
-	ContextStatusConnecting   = 1
-	ContextStatusConnected    = 2
+	AccountTypeFutures = 0
+	AccountTypeCrypto  = 1
 )
 
 //-----------------------------------------------------------------------------
 
-type ConnectionContext struct {
-	Username       string
-	ConnectionCode string
-	Host           string
-	Status         ContextStatus
-	Adapter        Adapter
+type Account struct {
+	Code                 string      `json:"code"`
+	Type                 AccountType `json:"type"`
+	CurrencyCode         string      `json:"currencyCode"`
+	CashBalance          float64     `json:"cashBalance"`
+	Equity               float64     `json:"equity"`
+	RealizedProfitLoss   float64     `json:"realizedProfitLoss"`
+	UnrealizedProfitLoss float64     `json:"unrealizedProfitLoss"`
+	OpenOrderMargin      float64     `json:"openOrderMargin"`
+	InitialMargin        float64     `json:"initialMargin"`
+	MaintenanceMargin    float64     `json:"maintenanceMargin"`
+}
+
+//=============================================================================
+
+type Instrument struct {
+	Name            string
+	Description     string
+	Exchange        string
+	Country         string
+	Root            string
+	ExpirationDate  *time.Time
+	PointValue      int
+	MinMove         int
+	Continuous      bool
+}
+
+//=============================================================================
+
+type RootSymbol struct {
+	Code           string
+	Instrument     string
+	Country        string
+	Currency       string
+	Exchange       string
+	PointValue     int
 }
 
 //=============================================================================

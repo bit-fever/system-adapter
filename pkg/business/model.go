@@ -93,3 +93,10 @@ type ConnectionResult struct {
 }
 
 //=============================================================================
+
+type TestAdapterRequest struct {
+	Service string `json:"service"`
+	Query   string `json:"query"`
+}
+
+//=============================================================================

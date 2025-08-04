@@ -1,6 +1,6 @@
 //=============================================================================
 /*
-Copyright © 2023 Andrea Carboni andrea.carboni71@gmail.com
+Copyright © 2025 Andrea Carboni andrea.carboni71@gmail.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,16 +22,17 @@ THE SOFTWARE.
 */
 //=============================================================================
 
-package app
+package process
 
-import "github.com/bit-fever/core"
+import (
+	"github.com/bit-fever/system-adapter/pkg/app"
+	"github.com/bit-fever/system-adapter/pkg/process/tokenrefresh"
+)
 
 //=============================================================================
 
-type Config struct {
-	core.Application
-	core.Authentication
-	core.Messaging
+func Init(cfg *app.Config) {
+	tokenrefresh.InitRefresh(cfg)
 }
 
 //=============================================================================

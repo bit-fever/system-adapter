@@ -102,3 +102,61 @@ func (a *local) InitFromWebLogin(reqHeader *http.Header, resCookies []*http.Cook
 }
 
 //=============================================================================
+
+func (a *local) GetTokenExpSeconds() int {
+	return 0;
+}
+
+//=============================================================================
+
+func (a *local) RefreshToken() error {
+	return nil
+}
+
+//=============================================================================
+//===
+//=== Services
+//===
+//=============================================================================
+
+func (a *local) GetRoots(filter string) ([]*adapter.RootSymbol,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *local) GetInstruments(root string) ([]*adapter.Instrument,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *local) GetPrices() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *local) GetAccounts() ([]*adapter.Account,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *local) GetOrders() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *local) GetPositions() (any,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *local) TestService(path,param string) (string,error) {
+	return "", nil
+}
+
+//=============================================================================
