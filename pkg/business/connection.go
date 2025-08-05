@@ -234,13 +234,24 @@ func Disconnect(c *auth.Context, connectionCode string) error {
 //===
 //=============================================================================
 
-func GetRoots(c *auth.Context, connectionCode string, filter string) ([]*adapter.RootSymbol, error){
+func GetRootSymbols(c *auth.Context, connectionCode string, filter string) ([]*adapter.RootSymbol, error){
 	ctx,err := getConnectionContext(c, connectionCode)
 	if err != nil {
 		return nil,err
 	}
 
-	return ctx.GetRoots(filter)
+	return ctx.GetRootSymbols(filter)
+}
+
+//=============================================================================
+
+func GetRootSymbol(c *auth.Context, connectionCode string, root string) (*adapter.RootSymbol, error){
+	ctx,err := getConnectionContext(c, connectionCode)
+	if err != nil {
+		return nil,err
+	}
+
+	return ctx.GetRootSymbol(root)
 }
 
 //=============================================================================

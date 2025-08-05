@@ -26,7 +26,6 @@ package business
 
 import (
 	"github.com/bit-fever/system-adapter/pkg/adapter"
-	"github.com/bit-fever/system-adapter/pkg/adapter/interactive"
 	"github.com/bit-fever/system-adapter/pkg/adapter/local"
 	"github.com/bit-fever/system-adapter/pkg/adapter/tradestation"
 )
@@ -47,7 +46,7 @@ func init() {
 
 	register(local       .NewAdapter())
 	register(tradestation.NewAdapter())
-	register(interactive .NewAdapter())
+//	register(interactive .NewAdapter())
 }
 
 //=============================================================================

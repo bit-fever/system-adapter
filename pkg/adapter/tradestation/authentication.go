@@ -321,7 +321,7 @@ func (a *tradestation) testToken() error {
 		return err
 	}
 
-	if len(accounts.Accounts) == 0 {
+	if len(accounts) == 0 {
 		return errors.New("Futures account not found or not active")
 	}
 

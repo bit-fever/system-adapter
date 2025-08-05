@@ -47,7 +47,8 @@ func Init(router *gin.Engine, cfg *app.Config, logger *slog.Logger) {
 
 	//--- Adapter services
 
-	router.GET   ("/api/system/v1/connections/:code/roots",                    ctrl.Secure(getRoots,       roles.Admin_User))
+	router.GET   ("/api/system/v1/connections/:code/roots",                    ctrl.Secure(getRootSymbols, roles.Admin_User))
+	router.GET   ("/api/system/v1/connections/:code/roots/:root",              ctrl.Secure(getRootSymbol,  roles.Admin_User))
 	router.GET   ("/api/system/v1/connections/:code/roots/:root/instruments",  ctrl.Secure(getInstruments, roles.Admin_User))
 	router.GET   ("/api/system/v1/connections/:code/prices",                   ctrl.Secure(getPrices,      roles.Admin_User))
 	router.GET   ("/api/system/v1/connections/:code/accounts",                 ctrl.Secure(getAccounts,    roles.Admin_User))

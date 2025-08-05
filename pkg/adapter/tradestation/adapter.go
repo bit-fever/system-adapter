@@ -181,7 +181,7 @@ func (a *tradestation) RefreshToken() error {
 //===
 //=============================================================================
 
-func (a *tradestation) GetRoots(filter string) ([]*adapter.RootSymbol,error) {
+func (a *tradestation) GetRootSymbols(filter string) ([]*adapter.RootSymbol,error) {
 	//--- Category=FU   (Category=Futures)
 	//--- $top=1000     (returns first 1000 results)
 
@@ -204,7 +204,7 @@ func (a *tradestation) GetRoots(filter string) ([]*adapter.RootSymbol,error) {
 				Country   : rf.Country,
 				Currency  : rf.Currency,
 				Exchange  : rf.Exchange,
-				PointValue: rf.PointValue,
+				PointValue: float64(rf.PointValue),
 			}
 
 			rootsMap[r.Code] = r
@@ -212,6 +212,36 @@ func (a *tradestation) GetRoots(filter string) ([]*adapter.RootSymbol,error) {
 	}
 
 	return slices.Collect(maps.Values(rootsMap)), nil
+}
+
+//=============================================================================
+
+func (a *tradestation) GetRootSymbol(root string) (*adapter.RootSymbol,error) {
+	apiUrl := a.apiUrl + UrlMarketDataSymbols +"/"+ buildInstrumentList(root)
+
+	var res SymbolDetailsResponse
+	err := a.doGet(apiUrl, &res)
+	if err != nil {
+		return nil, err
+	}
+
+	for _,sd := range res.Symbols {
+		if sd.AssetType == "FUTURE" {
+			rs := &adapter.RootSymbol{
+				Code      : sd.Root,
+				Instrument: sd.Description,
+				Exchange  : sd.Exchange,
+				PointValue: toFloat64(sd.PriceFormat.PointValue),
+				Increment : toFloat64(sd.PriceFormat.Increment),
+				Country   : sd.Country,
+				Currency  : sd.Currency,
+			}
+
+			return rs,nil
+		}
+	}
+
+	return nil, req.NewNotFoundError("Root symbol not found: %v", root)
 }
 
 //=============================================================================
@@ -444,6 +474,26 @@ func convertExpirationDate(date string) (*time.Time,error) {
 
 	res  := time.UnixMilli(ts)
 	return &res, nil
+}
+
+//=============================================================================
+
+func buildInstrumentList(root string) string {
+	year := strconv.Itoa(time.Now().Year() % 100)
+
+	return "@"+root+
+			","+root +"F"+year+
+			","+root +"G"+year+
+			","+root +"H"+year+
+			","+root +"J"+year+
+			","+root +"K"+year+
+			","+root +"M"+year+
+			","+root +"N"+year+
+			","+root +"Q"+year+
+			","+root +"U"+year+
+			","+root +"V"+year+
+			","+root +"X"+year+
+			","+root +"Z"+year
 }
 
 //=============================================================================

@@ -138,7 +138,13 @@ func (a *ib) RefreshToken() error {
 //===
 //=============================================================================
 
-func (a *ib) GetRoots(filter string) ([]*adapter.RootSymbol,error) {
+func (a *ib) GetRootSymbols(filter string) ([]*adapter.RootSymbol,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *ib) GetRootSymbol(root string) (*adapter.RootSymbol,error) {
 	return nil, nil
 }
 

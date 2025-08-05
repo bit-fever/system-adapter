@@ -169,7 +169,8 @@ type Adapter interface {
 
 	//--- Services
 
-	GetRoots(filter string) ([]*RootSymbol,error)
+	GetRootSymbols(filter string) ([]*RootSymbol,error)
+	GetRootSymbol(root string) (*RootSymbol,error)
 	GetInstruments(root string) ([]*Instrument,error)
 	GetPrices() (any,error)
 	GetAccounts() ([]*Account,error)
@@ -222,12 +223,13 @@ type Instrument struct {
 //=============================================================================
 
 type RootSymbol struct {
-	Code           string
-	Instrument     string
-	Country        string
-	Currency       string
-	Exchange       string
-	PointValue     int
+	Code        string
+	Instrument  string
+	Exchange    string
+	PointValue  float64
+	Increment   float64
+	Country     string
+	Currency    string
 }
 
 //=============================================================================

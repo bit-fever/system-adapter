@@ -119,7 +119,13 @@ func (a *local) RefreshToken() error {
 //===
 //=============================================================================
 
-func (a *local) GetRoots(filter string) ([]*adapter.RootSymbol,error) {
+func (a *local) GetRootSymbols(filter string) ([]*adapter.RootSymbol,error) {
+	return nil, nil
+}
+
+//=============================================================================
+
+func (a *local) GetRootSymbol(root string) (*adapter.RootSymbol,error) {
 	return nil, nil
 }
 

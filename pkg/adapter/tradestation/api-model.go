@@ -28,12 +28,13 @@ package tradestation
 
 const (
 	UrlBrokerageAccounts = "/v3/brokerage/accounts"
+	UrlMarketDataSymbols = "/v3/marketdata/symbols"
 	UrlSymbolsSearch     = "/v2/data/symbols/search"
 	UrlSymbolsSuggest    = "/v2/data/symbols/suggest"
 )
 
 //=============================================================================
-//=== brokerage/accounts
+//=== Service: /v3/brokerage/accounts
 //=============================================================================
 
 type AccountsResponse struct {
@@ -62,7 +63,7 @@ type AccountDetail struct {
 }
 
 //=============================================================================
-//=== brokerage/accounts/XXX/balances
+//=== Service: /v3/brokerage/accounts/XXX/balances
 //=============================================================================
 
 type BalancesResponse struct {
@@ -116,7 +117,7 @@ type CurrencyDetail struct {
 }
 
 //=============================================================================
-//=== v2/data/symbols/search/XXX
+//=== Service: /v2/data/symbols/search/XXX
 //=============================================================================
 
 type SymbolFound struct {
@@ -140,6 +141,8 @@ type SymbolFound struct {
 }
 
 //=============================================================================
+//=== Service: /v2/data/symbols/suggest/XXX
+//=============================================================================
 
 type RootFound struct {
 	Country        string
@@ -153,6 +156,51 @@ type RootFound struct {
 	PointValue     int
 	Root           string
 	StrikePrice    int
+}
+
+//=============================================================================
+//=== Service: /v3/marketdata/symbols/XXX
+//=============================================================================
+
+type SymbolDetailsResponse struct {
+	Symbols []SymbolDetails
+	Errors  []interface{}
+}
+
+//=============================================================================
+
+type SymbolDetails struct {
+	AssetType      string
+	Country        string
+	Currency       string
+	Description    string
+	Exchange       string
+	FutureType     string
+	Symbol         string
+	Root           string
+	Underlying     string
+	PriceFormat    PriceFormat
+	QuantityFormat QuantityFormat
+}
+
+//=============================================================================
+
+type PriceFormat struct {
+	Format         string
+	Decimals       string
+	IncrementStyle string
+	Increment      string
+	PointValue     string
+}
+
+//=============================================================================
+
+type QuantityFormat struct {
+	Format               string
+	Decimals             string
+	IncrementStyle       string
+	Increment            string
+	MinimumTradeQuantity string
 }
 
 //=============================================================================

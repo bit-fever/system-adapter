@@ -215,11 +215,20 @@ func (cc *ConnectionContext) RefreshToken() error {
 
 //=============================================================================
 
-func (cc *ConnectionContext) GetRoots(filter string) ([]*RootSymbol,error) {
+func (cc *ConnectionContext) GetRootSymbols(filter string) ([]*RootSymbol,error) {
 	cc.RLock()
 	defer cc.RUnlock()
 
-	return cc.adapter.GetRoots(filter)
+	return cc.adapter.GetRootSymbols(filter)
+}
+
+//=============================================================================
+
+func (cc *ConnectionContext) GetRootSymbol(root string) (*RootSymbol,error) {
+	cc.RLock()
+	defer cc.RUnlock()
+
+	return cc.adapter.GetRootSymbol(root)
 }
 
 //=============================================================================

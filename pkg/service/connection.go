@@ -107,16 +107,31 @@ func webLogin(c *gin.Context) {
 
 //=============================================================================
 
-func getRoots(c *auth.Context) {
+func getRootSymbols(c *auth.Context) {
 	code   := c.GetCodeFromUrl()
 	filter := c.Gin.Query("filter")
 	if filter == "" {
 		c.ReturnError(req.NewBadRequestError("No filter provided"))
 	}
 
-	res, err := business.GetRoots(c, code, filter)
+	res, err := business.GetRootSymbols(c, code, filter)
 	if err == nil {
 		_ = c.ReturnList(res, 0, 10000, len(res))
+		return
+	}
+
+	c.ReturnError(err)
+}
+
+//=============================================================================
+
+func getRootSymbol(c *auth.Context) {
+	code   := c.GetCodeFromUrl()
+	root   := c.Gin.Param("root")
+
+	res, err := business.GetRootSymbol(c, code, root)
+	if err == nil {
+		_ = c.ReturnObject(res)
 		return
 	}
 
