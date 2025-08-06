@@ -204,7 +204,7 @@ func (a *tradestation) GetRootSymbols(filter string) ([]*adapter.RootSymbol,erro
 				Country   : rf.Country,
 				Currency  : rf.Currency,
 				Exchange  : rf.Exchange,
-				PointValue: float64(rf.PointValue),
+				PointValue: rf.PointValue,
 			}
 
 			rootsMap[r.Code] = r

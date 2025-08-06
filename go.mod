@@ -3,7 +3,7 @@ module github.com/bit-fever/system-adapter
 go 1.24.0
 
 require (
-	github.com/bit-fever/core v1.9.3
+	github.com/bit-fever/core v1.9.4
 	github.com/gin-gonic/gin v1.10.1
 	golang.org/x/net v0.42.0
 )

@@ -153,7 +153,7 @@ type RootFound struct {
 	LotSize        int
 	MinMove        int
 	Name           string
-	PointValue     int
+	PointValue     float64
 	Root           string
 	StrikePrice    int
 }

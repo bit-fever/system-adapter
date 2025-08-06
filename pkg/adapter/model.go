@@ -209,27 +209,27 @@ type Account struct {
 //=============================================================================
 
 type Instrument struct {
-	Name            string
-	Description     string
-	Exchange        string
-	Country         string
-	Root            string
-	ExpirationDate  *time.Time
-	PointValue      int
-	MinMove         int
-	Continuous      bool
+	Name            string     `json:"name"`
+	Description     string     `json:"description"`
+	Exchange        string     `json:"exchange"`
+	Country         string     `json:"country"`
+	Root            string     `json:"root"`
+	ExpirationDate  *time.Time `json:"expirationDate"`
+	PointValue      int        `json:"pointValue"`
+	MinMove         int        `json:"minMove"`
+	Continuous      bool       `json:"continuous"`
 }
 
 //=============================================================================
 
 type RootSymbol struct {
-	Code        string
-	Instrument  string
-	Exchange    string
-	PointValue  float64
-	Increment   float64
-	Country     string
-	Currency    string
+	Code        string  `json:"code"`
+	Instrument  string  `json:"instrument"`
+	Exchange    string  `json:"exchange"`
+	PointValue  float64 `json:"pointValue"`
+	Increment   float64 `json:"increment"`
+	Country     string  `json:"country"`
+	Currency    string  `json:"currency"`
 }
 
 //=============================================================================
