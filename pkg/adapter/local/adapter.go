@@ -25,6 +25,7 @@ THE SOFTWARE.
 package local
 
 import (
+	"github.com/bit-fever/core/datatype"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"net/http"
 )
@@ -137,7 +138,7 @@ func (a *local) GetInstruments(root string) ([]*adapter.Instrument,error) {
 
 //=============================================================================
 
-func (a *local) GetPrices() (any,error) {
+func (a *local) GetPriceBars(symbol string, date datatype.IntDate) (*adapter.PriceBars,error) {
 	return nil, nil
 }
 

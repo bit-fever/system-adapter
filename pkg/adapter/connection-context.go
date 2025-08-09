@@ -25,6 +25,7 @@ THE SOFTWARE.
 package adapter
 
 import (
+	"github.com/bit-fever/core/datatype"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -242,11 +243,11 @@ func (cc *ConnectionContext) GetInstruments(root string) ([]*Instrument,error) {
 
 //=============================================================================
 
-func (cc *ConnectionContext) GetPrices() (any,error) {
+func (cc *ConnectionContext) GetPriceBars(symbol string, date datatype.IntDate) (*PriceBars,error) {
 	cc.RLock()
 	defer cc.RUnlock()
 
-	return cc.adapter.GetPrices()
+	return cc.adapter.GetPriceBars(symbol, date)
 }
 
 //=============================================================================

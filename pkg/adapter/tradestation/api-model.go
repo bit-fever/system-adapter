@@ -27,10 +27,11 @@ package tradestation
 //=============================================================================
 
 const (
-	UrlBrokerageAccounts = "/v3/brokerage/accounts"
-	UrlMarketDataSymbols = "/v3/marketdata/symbols"
-	UrlSymbolsSearch     = "/v2/data/symbols/search"
-	UrlSymbolsSuggest    = "/v2/data/symbols/suggest"
+	UrlBrokerageAccounts  = "/v3/brokerage/accounts"
+	UrlMarketDataSymbols  = "/v3/marketdata/symbols"
+	UrlMarketDataBarcharts= "/v3/marketdata/barcharts"
+	UrlSymbolsSearch      = "/v2/data/symbols/search"
+	UrlSymbolsSuggest     = "/v2/data/symbols/suggest"
 )
 
 //=============================================================================
@@ -135,7 +136,7 @@ type SymbolFound struct {
 	StrikePrice     int
 	Currency        string
 	PointValue      int
-	MinMove         int
+	MinMove         float64
 	DisplayType     int
 	Error           interface{}
 }
@@ -151,7 +152,7 @@ type RootFound struct {
 	Exchange       string
 	ExpirationDate string
 	LotSize        int
-	MinMove        int
+	MinMove        float64
 	Name           string
 	PointValue     float64
 	Root           string
@@ -201,6 +202,32 @@ type QuantityFormat struct {
 	IncrementStyle       string
 	Increment            string
 	MinimumTradeQuantity string
+}
+
+//=============================================================================
+//=== Service: /v3/marketdata/barcharts/XXX
+//=============================================================================
+
+type BarchartsResponse struct {
+	Bars    []Bar
+	Error   string
+	Message string
+}
+
+//=============================================================================
+
+type Bar struct {
+	TimeStamp    string
+	Epoch        int64
+	High         string
+	Low          string
+	Open         string
+	Close        string
+	UpVolume     int
+	DownVolume   int
+	UpTicks      int
+	DownTicks    int
+	OpenInterest string
 }
 
 //=============================================================================

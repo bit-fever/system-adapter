@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bit-fever/core/datatype"
 	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"io"
@@ -169,7 +170,11 @@ func (a *tradestation) RefreshToken() error {
 
 	if err == nil {
 		a.accessToken = out.AccessToken
-//		a.accessToken = res.Header.Get("X-Authorization")
+		a.refreshToken= out.IdToken
+
+		if a.accessToken == "" {
+			slog.Error("Azz")
+		}
 	}
 
 	return err
@@ -280,7 +285,18 @@ func (a *tradestation) GetInstruments(root string) ([]*adapter.Instrument,error)
 				Continuous    : sf.Name[0:1]=="@",
 			}
 
-			instruments = append(instruments,&i)
+			//--- Tradestation reports very future contracts (like 2036) without an expiration date.
+			//--- We have to skip those because as time passes the expiration date should be set
+
+			hasExpDate := i.ExpirationDate != nil || i.Continuous
+
+			//--- Before 2008, contracts seem not very good in quality. Let's skip them
+
+			isRecent := i.ExpirationDate != nil && i.ExpirationDate.Year() >= 2006
+
+			if  hasExpDate && isRecent {
+				instruments = append(instruments,&i)
+			}
 		}
 	}
 
@@ -289,8 +305,45 @@ func (a *tradestation) GetInstruments(root string) ([]*adapter.Instrument,error)
 
 //=============================================================================
 
-func (a *tradestation) GetPrices() (any,error) {
-	return nil, nil
+func (a *tradestation) GetPriceBars(symbol string, date datatype.IntDate) (*adapter.PriceBars,error) {
+	//--- Last time set to 23:59:50 (and not 59) as it seems that Tradestation somethimes returns 1 extra bar
+	query := "unit=minute&interval=1&firstdate="+ date.String() +"T00%3A00%3A00Z&lastdate="+ date.String() +"T23%3A59%3A50Z"
+	apiUrl := a.apiUrl + UrlMarketDataBarcharts +"/"+ symbol +"?"+ query
+
+	priceBars := adapter.PriceBars{
+		Symbol: symbol,
+		Date  : int(date),
+	}
+
+	var res BarchartsResponse
+	err := a.doGet(apiUrl, &res)
+	if err != nil {
+		if err.Error() == "Not found" {
+			priceBars.NoData = true
+			return &priceBars, nil
+		}
+
+		return nil, err
+	}
+
+	for _,bar := range res.Bars {
+		pb := adapter.PriceBar{
+			TimeStamp   : time.UnixMilli(bar.Epoch),
+			High        : toFloat64(bar.High),
+			Low         : toFloat64(bar.Low),
+			Open        : toFloat64(bar.Open),
+			Close       : toFloat64(bar.Close),
+			UpVolume    : bar.UpVolume,
+			DownVolume  : bar.DownVolume,
+			UpTicks     : bar.UpTicks,
+			DownTicks   : bar.DownTicks,
+			OpenInterest: toInt(bar.OpenInterest),
+		}
+
+		priceBars.Bars = append(priceBars.Bars, &pb)
+	}
+
+	return &priceBars, nil
 }
 
 //=============================================================================
@@ -446,6 +499,18 @@ func toFloat64(value string) float64 {
 	val, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		slog.Warn("Tradestation: Error converting value to float64", "value", value)
+		return 0
+	}
+
+	return val
+}
+
+//=============================================================================
+
+func toInt(value string) int {
+	val, err := strconv.Atoi(value)
+	if err != nil {
+		slog.Warn("Tradestation: Error converting value to int", "value", value)
 		return 0
 	}
 

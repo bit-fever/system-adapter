@@ -26,6 +26,7 @@ package business
 
 import (
 	"github.com/bit-fever/core/auth"
+	"github.com/bit-fever/core/datatype"
 	"github.com/bit-fever/core/msg"
 	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
@@ -267,8 +268,13 @@ func GetInstruments(c *auth.Context, connectionCode string, root string) ([]*ada
 
 //=============================================================================
 
-func GetPrices(c *auth.Context, connectionCode string) (any, error){
-	return nil,nil
+func GetPriceBars(c *auth.Context, connectionCode string, symbol string, date datatype.IntDate) (*adapter.PriceBars, error){
+	ctx,err := getConnectionContext(c, connectionCode)
+	if err != nil {
+		return nil,err
+	}
+
+	return ctx.GetPriceBars(symbol, date)
 }
 
 //=============================================================================
@@ -343,7 +349,7 @@ func sendConnectionChangeMessage(c *auth.Context, ctx *adapter.ConnectionContext
 func getConnectionContext(c *auth.Context, connectionCode string) (*adapter.ConnectionContext, error) {
 	userConnections.RLock()
 
-	user := c.Session.Username
+	user := c.Session.OnBehalfOf
 	uc, ok := userConnections.m[user]
 	if !ok {
 		userConnections.RUnlock()

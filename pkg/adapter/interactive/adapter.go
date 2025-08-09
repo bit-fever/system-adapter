@@ -29,6 +29,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"github.com/bit-fever/core/datatype"
 	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"log/slog"
@@ -156,7 +157,7 @@ func (a *ib) GetInstruments(root string) ([]*adapter.Instrument,error) {
 
 //=============================================================================
 
-func (a *ib) GetPrices() (any,error) {
+func (a *ib) GetPriceBars(symbol string, date datatype.IntDate) (*adapter.PriceBars,error) {
 	return nil, nil
 }
 

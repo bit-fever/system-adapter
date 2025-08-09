@@ -26,6 +26,7 @@ package adapter
 
 import (
 	"errors"
+	"github.com/bit-fever/core/datatype"
 	"log/slog"
 	"net/http"
 	"reflect"
@@ -172,7 +173,7 @@ type Adapter interface {
 	GetRootSymbols(filter string) ([]*RootSymbol,error)
 	GetRootSymbol(root string) (*RootSymbol,error)
 	GetInstruments(root string) ([]*Instrument,error)
-	GetPrices() (any,error)
+	GetPriceBars(symbol string, date datatype.IntDate) (*PriceBars,error)
 	GetAccounts() ([]*Account,error)
 	GetOrders() (any,error)
 	GetPositions() (any,error)
@@ -216,7 +217,7 @@ type Instrument struct {
 	Root            string     `json:"root"`
 	ExpirationDate  *time.Time `json:"expirationDate"`
 	PointValue      int        `json:"pointValue"`
-	MinMove         int        `json:"minMove"`
+	MinMove         float64    `json:"minMove"`
 	Continuous      bool       `json:"continuous"`
 }
 
@@ -230,6 +231,30 @@ type RootSymbol struct {
 	Increment   float64 `json:"increment"`
 	Country     string  `json:"country"`
 	Currency    string  `json:"currency"`
+}
+
+//=============================================================================
+
+type PriceBars struct {
+	Symbol string      `json:"symbol"`
+	Date   int         `json:"date"`
+	Bars   []*PriceBar `json:"bars"`
+	NoData bool        `json:"noData"`
+}
+
+//=============================================================================
+
+type PriceBar struct {
+	TimeStamp    time.Time
+	High         float64
+	Low          float64
+	Open         float64
+	Close        float64
+	UpVolume     int
+	DownVolume   int
+	UpTicks      int
+	DownTicks    int
+	OpenInterest int
 }
 
 //=============================================================================

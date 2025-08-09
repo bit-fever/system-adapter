@@ -26,6 +26,7 @@ package service
 
 import (
 	"github.com/bit-fever/core/auth"
+	"github.com/bit-fever/core/datatype"
 	"github.com/bit-fever/core/req"
 	"github.com/bit-fever/system-adapter/pkg/business"
 	"github.com/gin-gonic/gin"
@@ -155,10 +156,19 @@ func getInstruments(c *auth.Context) {
 
 //=============================================================================
 
-func getPrices(c *auth.Context) {
-	code := c.GetCodeFromUrl()
+func getPriceBars(c *auth.Context) {
+	code  := c.GetCodeFromUrl()
+	symbol:= c.Gin.Param("symbol")
+	date  := c.Gin.Query("date")
 
-	res, err := business.GetPrices(c, code)
+	id,err := datatype.ParseIntDate(date, true)
+
+	if err != nil {
+		c.ReturnError(req.NewBadRequestError("Missing or invalid 'date' parameter"))
+		return
+	}
+
+	res, err := business.GetPriceBars(c, code, symbol, id)
 	if err == nil {
 		_ = c.ReturnObject(res)
 		return

@@ -49,11 +49,11 @@ func Init(router *gin.Engine, cfg *app.Config, logger *slog.Logger) {
 
 	router.GET   ("/api/system/v1/connections/:code/roots",                    ctrl.Secure(getRootSymbols, roles.Admin_User))
 	router.GET   ("/api/system/v1/connections/:code/roots/:root",              ctrl.Secure(getRootSymbol,  roles.Admin_User))
-	router.GET   ("/api/system/v1/connections/:code/roots/:root/instruments",  ctrl.Secure(getInstruments, roles.Admin_User))
-	router.GET   ("/api/system/v1/connections/:code/prices",                   ctrl.Secure(getPrices,      roles.Admin_User))
-	router.GET   ("/api/system/v1/connections/:code/accounts",                 ctrl.Secure(getAccounts,    roles.Admin_User))
-	router.GET   ("/api/system/v1/connections/:code/orders",                   ctrl.Secure(getOrders,      roles.Admin_User))
-	router.GET   ("/api/system/v1/connections/:code/positions",                ctrl.Secure(getPositions,   roles.Admin_User))
+	router.GET   ("/api/system/v1/connections/:code/roots/:root/instruments",  ctrl.Secure(getInstruments, roles.Admin_User_Service))
+	router.GET   ("/api/system/v1/connections/:code/instruments/:symbol/bars", ctrl.Secure(getPriceBars,   roles.Admin_User_Service))
+	router.GET   ("/api/system/v1/connections/:code/accounts",                 ctrl.Secure(getAccounts,    roles.Admin_User_Service))
+	router.GET   ("/api/system/v1/connections/:code/orders",                   ctrl.Secure(getOrders,      roles.Admin_User_Service))
+	router.GET   ("/api/system/v1/connections/:code/positions",                ctrl.Secure(getPositions,   roles.Admin_User_Service))
 	router.POST  ("/api/system/v1/connections/:code/test",                     ctrl.Secure(testAdapter,    roles.Admin_User))
 
 	//TODO: To review
