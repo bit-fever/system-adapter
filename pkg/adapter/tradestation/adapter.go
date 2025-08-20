@@ -163,8 +163,6 @@ func (a *tradestation) RefreshToken() error {
 
 	res, err := a.client.Do(rq)
 
-	defer res.Body.Close()
-
 	var out TokenRefreshResponse
 	err = req.BuildResponse(res, err, &out)
 
@@ -173,8 +171,12 @@ func (a *tradestation) RefreshToken() error {
 		a.refreshToken= out.IdToken
 
 		if a.accessToken == "" {
-			slog.Error("Azz")
+			err = errors.New("Got an ampty access token (refresh token is not working)")
 		}
+	}
+
+	if res.Body != nil {
+		_=res.Body.Close()
 	}
 
 	return err
@@ -283,6 +285,7 @@ func (a *tradestation) GetInstruments(root string) ([]*adapter.Instrument,error)
 				PointValue    : sf.PointValue,
 				MinMove       : sf.MinMove,
 				Continuous    : sf.Name[0:1]=="@",
+				Month         : extractMonth(sf.Name),
 			}
 
 			//--- Tradestation reports very future contracts (like 2036) without an expiration date.
@@ -559,6 +562,25 @@ func buildInstrumentList(root string) string {
 			","+root +"V"+year+
 			","+root +"X"+year+
 			","+root +"Z"+year
+}
+
+//=============================================================================
+
+func extractMonth(symbol string) string {
+	size := len(symbol)
+	if size <4 {
+		return ""
+	}
+
+	year := symbol[size-2 : size]
+	_,err := strconv.Atoi(year)
+	if err != nil {
+		return ""
+	}
+
+	//--- Ok, last 2 digits are a number (the year). Let's get the month
+
+	return symbol[size-3 : size-2]
 }
 
 //=============================================================================
