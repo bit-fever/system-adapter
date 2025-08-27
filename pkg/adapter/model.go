@@ -26,12 +26,13 @@ package adapter
 
 import (
 	"errors"
-	"github.com/bit-fever/core/datatype"
 	"log/slog"
 	"net/http"
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/bit-fever/core/datatype"
 )
 
 //=============================================================================
@@ -237,10 +238,11 @@ type RootSymbol struct {
 //=============================================================================
 
 type PriceBars struct {
-	Symbol string      `json:"symbol"`
-	Date   int         `json:"date"`
-	Bars   []*PriceBar `json:"bars"`
-	NoData bool        `json:"noData"`
+	Symbol  string      `json:"symbol"`
+	Date    int         `json:"date"`
+	Bars    []*PriceBar `json:"bars"`
+	NoData  bool        `json:"noData"`
+	Timeout bool        `json:"timeout"`
 }
 
 //=============================================================================

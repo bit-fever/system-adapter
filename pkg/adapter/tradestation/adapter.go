@@ -30,9 +30,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bit-fever/core/datatype"
-	"github.com/bit-fever/core/req"
-	"github.com/bit-fever/system-adapter/pkg/adapter"
 	"io"
 	"log/slog"
 	"maps"
@@ -42,6 +39,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bit-fever/core/datatype"
+	"github.com/bit-fever/core/req"
+	"github.com/bit-fever/system-adapter/pkg/adapter"
 )
 
 //=============================================================================
@@ -319,13 +320,27 @@ func (a *tradestation) GetPriceBars(symbol string, date datatype.IntDate) (*adap
 	}
 
 	var res BarchartsResponse
-	err := a.doGet(apiUrl, &res)
+	rres,err := a.doGetWithResponse(apiUrl)
 	if err != nil {
-		if err.Error() == "Not found" {
-			priceBars.NoData = true
-			return &priceBars, nil
-		}
+		return nil, err
+	}
 
+	//--- Handle special cases
+
+	if rres.StatusCode == http.StatusNotFound {
+		priceBars.NoData = true
+		return &priceBars, nil
+	}
+
+	if rres.StatusCode == http.StatusGatewayTimeout {
+		priceBars.Timeout = true
+		return &priceBars, nil
+	}
+
+	//--- Read response
+
+	err = req.BuildResponse(rres, err, &res)
+	if err != nil {
 		return nil, err
 	}
 
@@ -440,17 +455,23 @@ func (a *tradestation) TestService(path,param string) (string,error) {
 //=============================================================================
 
 func (a *tradestation) doGet(url string, output any) error {
+	res, err := a.doGetWithResponse(url)
+	return req.BuildResponse(res, err, &output)
+}
+
+//=============================================================================
+
+func (a *tradestation) doGetWithResponse(url string) (*http.Response, error) {
 	rq, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		slog.Error("Error creating a GET request", "error", err.Error())
-		return err
+		return nil,err
 	}
 
 	rq.Header.Set("Authorization", "Bearer "+ a.accessToken)
 	rq.Header.Set("Content-Type", "application/json")
 
-	res, err := a.client.Do(rq)
-	return req.BuildResponse(res, err, &output)
+	return a.client.Do(rq)
 }
 
 //=============================================================================

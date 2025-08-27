@@ -25,16 +25,21 @@ THE SOFTWARE.
 package adapter
 
 import (
-	"github.com/bit-fever/core/datatype"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/bit-fever/core/datatype"
 )
 
 //=============================================================================
 
-const RETRIES = 5
+const (
+	RefreshRetries   = 5
+	PriceBarsRetries = 5
+)
 
 //=============================================================================
 //===
@@ -84,7 +89,7 @@ func NewConnectionContext(username string, connectionCode string, host string, a
 		Host          : host,
 		adapter       : a.Clone(configParams, connectParams),
 		status        : ContextStatusDisconnected,
-		refreshRetries: RETRIES,
+		refreshRetries: RefreshRetries,
 	},nil
 }
 
@@ -200,7 +205,7 @@ func (cc *ConnectionContext) RefreshToken() error {
 
 	if err == nil {
 		cc.lastRefreshTime = time.Now()
-		cc.refreshRetries  = RETRIES
+		cc.refreshRetries  = RefreshRetries
 	} else {
 		cc.refreshRetries--
 		if cc.refreshRetries > 0 {
@@ -247,7 +252,22 @@ func (cc *ConnectionContext) GetPriceBars(symbol string, date datatype.IntDate) 
 	cc.RLock()
 	defer cc.RUnlock()
 
-	return cc.adapter.GetPriceBars(symbol, date)
+	counter := 0
+
+	for {
+		pc,err := cc.adapter.GetPriceBars(symbol, date)
+
+		if err != nil || !pc.Timeout {
+			return pc,err
+		}
+
+		counter++
+		slog.Warn("GetPriceBars: Got timeout from adapter", "adapter", cc.adapter.GetInfo().Name, "counter", counter)
+
+		if counter == PriceBarsRetries {
+			return nil,errors.New("Maximum number of retries exceeded: "+ cc.adapter.GetInfo().Name)
+		}
+	}
 }
 
 //=============================================================================
