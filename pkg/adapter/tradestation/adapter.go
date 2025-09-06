@@ -172,11 +172,11 @@ func (a *tradestation) RefreshToken() error {
 		a.refreshToken= out.IdToken
 
 		if a.accessToken == "" {
-			err = errors.New("Got an ampty access token (refresh token is not working)")
+			err = errors.New("Got an empty access token (refresh token is not working)")
 		}
 	}
 
-	if res.Body != nil {
+	if res != nil && res.Body != nil {
 		_=res.Body.Close()
 	}
 
