@@ -311,7 +311,7 @@ func (a *tradestation) GetInstruments(root string) ([]*adapter.Instrument,error)
 
 func (a *tradestation) GetPriceBars(symbol string, date datatype.IntDate) (*adapter.PriceBars,error) {
 	//--- Last time set to 23:59:50 (and not 59) as it seems that Tradestation somethimes returns 1 extra bar
-	query := "unit=minute&interval=1&firstdate="+ date.String() +"T00%3A00%3A00Z&lastdate="+ date.String() +"T23%3A59%3A50Z"
+	query := "unit=minute&interval=1&firstdate="+ date.String() +"T00%3A00%3A00Z&lastdate="+ date.String() +"T23%3A59%3A00Z"
 	apiUrl := a.apiUrl + UrlMarketDataBarcharts +"/"+ symbol +"?"+ query
 
 	priceBars := adapter.PriceBars{
