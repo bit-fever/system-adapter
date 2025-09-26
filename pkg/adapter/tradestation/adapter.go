@@ -264,7 +264,7 @@ func (a *tradestation) GetInstruments(root string) ([]*adapter.Instrument,error)
 	var res []SymbolFound
 	err := a.doGet(apiUrl, &res)
 	if err != nil {
-		return nil, err
+		return nil, req.NewServiceUnavailableError("Cannot get instruments: %v", err)
 	}
 
 	var instruments []*adapter.Instrument
@@ -273,7 +273,7 @@ func (a *tradestation) GetInstruments(root string) ([]*adapter.Instrument,error)
 		if sf.Category == "Future" {
 			expDate,err := convertExpirationDate(sf.ExpirationDate)
 			if err != nil {
-				return nil,err
+				return nil, req.NewServerErrorByError(err)
 			}
 
 			i := adapter.Instrument{
